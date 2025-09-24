@@ -122,6 +122,13 @@ class SentinelConstants:
     TRANSFORMER_NUM_ATTENTION_HEADS: int = 8
     
     # =============================================================================
+    # CONFIGURATION API
+    # =============================================================================
+    API_TIMEOUT: int = 30  # Timeout API en secondes
+    API_RETRY_MAX: int = 3  # Nombre max de tentatives
+    API_RETRY_DELAY: float = 1.0  # Délai entre tentatives
+    
+    # =============================================================================
     # CONFIGURATION TESTS
     # =============================================================================
     TEST_DATA_SIZE: int = 1000
