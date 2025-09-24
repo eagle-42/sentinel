@@ -13,7 +13,7 @@ from loguru import logger
 root_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(root_dir))
 
-from pages.analysis_page import AnalysisPage
+from src.gui.pages.analysis_page import AnalysisPage
 
 
 def create_interface() -> gr.Blocks:

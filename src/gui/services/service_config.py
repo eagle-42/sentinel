@@ -12,7 +12,8 @@ if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 # Imports centralisés pour les services
-from config.unified_config import get_config, get_data_file_path, get_model_path, get_feature_columns
+from src.config import SentinelConfig
+from src.constants import CONSTANTS
 
 # Configuration des services
 SERVICE_CONFIG = {
@@ -24,7 +25,18 @@ SERVICE_CONFIG = {
 
 def get_service_config():
     """Obtient la configuration des services"""
-    config = get_config()
-    return {**SERVICE_CONFIG, **config.services}
+    config = SentinelConfig()
+    return SERVICE_CONFIG
+
+def get_data_file_path(ticker: str, data_type: str) -> str:
+    """Obtient le chemin vers un fichier de données"""
+    if data_type == "prices":
+        return str(CONSTANTS.PRICES_DIR / f"{ticker.lower()}_1min.parquet")
+    elif data_type == "news":
+        return str(CONSTANTS.NEWS_DIR / f"{ticker.lower()}_news.parquet")
+    elif data_type == "sentiment":
+        return str(CONSTANTS.SENTIMENT_DIR / f"{ticker.lower()}_sentiment.parquet")
+    else:
+        return str(CONSTANTS.DATA_ROOT / f"{ticker.lower()}_{data_type}.parquet")
 
 print("🔧 Configuration des services chargée")

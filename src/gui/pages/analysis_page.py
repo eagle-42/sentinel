@@ -8,10 +8,10 @@ import pandas as pd
 from typing import Tuple, Any
 from loguru import logger
 
-from ..components.filters_component import FiltersComponent
-from ..components.chart_component import ChartComponent
-from ..services.data_service import DataService
-from ..services.prediction_service import PredictionService
+from src.gui.components.filters_component import FiltersComponent
+from src.gui.components.chart_component import ChartComponent
+from src.gui.services.data_service import DataService
+from src.gui.services.prediction_service import PredictionService
 
 
 class AnalysisPage:
