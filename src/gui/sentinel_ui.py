@@ -95,12 +95,13 @@ def main():
             logger.error("❌ Impossible de créer l'interface")
             return
         
-        # Lancer l'interface
+        # Lancer l'interface ATTENTION MODIFIER EN PROD
         demo.launch(
             server_name="127.0.0.1",
-            server_port=7868,
+            server_port=7860,
             share=False,
             show_error=True,
+            inbrowser=True,
             debug=True,  # Activation du mode debug
             show_api=True  # Affichage de l'API pour le debug
         )

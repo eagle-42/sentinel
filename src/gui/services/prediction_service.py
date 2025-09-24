@@ -87,8 +87,8 @@ class PredictionService:
         """Charge le modèle LSTM existant (dernière version par défaut)"""
         try:
             # Utiliser la configuration centralisée
-            model_path = get_model_path(ticker, version)
-            model_file = model_path / "lstm_model.pth"
+            model_path_str = get_model_path(ticker, version)
+            model_file = Path(model_path_str)
             
             if not model_file.exists():
                 logger.error(f"❌ Modèle non trouvé: {model_file}")
@@ -98,9 +98,9 @@ class PredictionService:
             checkpoint = torch.load(model_file, map_location=self.device)
             
             # Utiliser la configuration centralisée
-            from config.unified_config import get_config
-            config = get_config()
-            model_config = config.models.get(ticker.lower(), {})
+            from src.config import SentinelConfig
+            config = SentinelConfig()
+            model_config = getattr(config, 'models', {}).get(ticker.lower(), {})
             
             # Valeurs par défaut si non trouvées
             if not model_config:

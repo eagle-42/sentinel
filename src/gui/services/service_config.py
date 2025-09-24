@@ -39,4 +39,19 @@ def get_data_file_path(ticker: str, data_type: str) -> str:
     else:
         return str(CONSTANTS.DATA_ROOT / f"{ticker.lower()}_{data_type}.parquet")
 
+def get_model_path(ticker: str, model_type: str = "lstm", version: str = "latest") -> str:
+    """Obtient le chemin vers un modèle"""
+    if version == "latest":
+        model_dir = CONSTANTS.MODELS_DIR / ticker.lower()
+        if model_dir.exists():
+            versions = [d for d in model_dir.iterdir() if d.is_dir() and d.name.startswith('version')]
+            if versions:
+                latest_version = sorted(versions, key=lambda x: int(x.name.replace('version', '')))[-1]
+                return str(latest_version / f"{model_type}_model.pth")
+    return str(CONSTANTS.MODELS_DIR / ticker.lower() / version / f"{model_type}_model.pth")
+
+def get_feature_columns() -> list:
+    """Obtient les colonnes de features pour les modèles"""
+    return ['open', 'high', 'low', 'close', 'volume', 'sma_20', 'rsi', 'macd']
+
 print("🔧 Configuration des services chargée")
