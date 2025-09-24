@@ -1,0 +1,14 @@
+{
+  "nvda": {
+    "enabled": true,
+    "version": "latest",
+    "auto_update": true,
+    "confidence_threshold": 0.7
+  },
+  "spy": {
+    "enabled": true,
+    "version": "latest",
+    "auto_update": true,
+    "confidence_threshold": 0.7
+  }
+}
