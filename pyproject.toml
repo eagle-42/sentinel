@@ -46,15 +46,18 @@ dependencies = [
     "matplotlib>=3.7.0",
     "plotly>=5.15.0",
     "seaborn>=0.12.0",
+    # Web frameworks
+    "streamlit>=1.50.0",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.23.0",
+    "flask>=3.1.2",
     # Development and testing
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
-    "flask>=3.1.2",
     "schedule>=1.2.2",
-    "gradio==4.44.0",
+    "kaleido>=1.1.0",
+    "websockets[asyncio]>=12.0",
 ]
 
 [project.optional-dependencies]
@@ -194,7 +197,7 @@ module = [
     "transformers.*",
     "torch.*",
     "sklearn.*",
-    "gradio.*",
+    "streamlit.*",
     "plotly.*",
 ]
 ignore_missing_imports = true

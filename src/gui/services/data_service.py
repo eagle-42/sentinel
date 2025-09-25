@@ -1,105 +1,134 @@
-#!/usr/bin/env python3
 """
-Service de données unifié - Gestion des données parquet
+Service de données pour Streamlit
+Chargement et filtrage des données historiques
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
 from loguru import logger
-
-# Import de la configuration centralisée
-from .service_config import get_service_config, get_data_file_path
+from typing import Dict, Any, Optional
 
 
 class DataService:
-    """Service unifié pour la gestion des données"""
+    """Service de données optimisé pour Streamlit"""
     
     def __init__(self):
-        self.data_cache = {}
+        self.data_path = Path("data/historical/yfinance")
+        self.cache = {}
         logger.info("📊 Service de données initialisé")
     
     def load_data(self, ticker: str) -> pd.DataFrame:
-        """Charge les données pour un ticker"""
+        """Charge les données pour un ticker avec normalisation complète"""
         try:
-            if ticker in self.data_cache:
-                return self.data_cache[ticker]
+            if ticker in self.cache:
+                return self.cache[ticker]
             
-            # Utiliser la configuration centralisée
-            data_path = get_data_file_path(ticker, "yfinance")
+            file_path = self.data_path / f"{ticker}_1999_2025.parquet"
             
-            if not data_path.exists():
-                raise FileNotFoundError(f"Données non trouvées pour {ticker} à {data_path}")
+            if not file_path.exists():
+                logger.error(f"❌ Fichier non trouvé: {file_path}")
+                return pd.DataFrame()
             
-            df = pd.read_parquet(data_path)
+            # Chargement avec normalisation des colonnes
+            df = pd.read_parquet(file_path)
             
-            # Normaliser les colonnes
+            # Normalisation des colonnes (majuscules)
             df.columns = df.columns.str.upper()
             
-            # Créer la colonne date en majuscules
-            if 'DATE' not in df.columns:
-                df['DATE'] = pd.to_datetime(df.index) if df.index.name == 'date' else pd.to_datetime(df['date'])
-            else:
-                df['DATE'] = pd.to_datetime(df['DATE'])
+            # Conversion des dates en UTC pour éviter les décalages
+            if 'DATE' in df.columns:
+                df['DATE'] = pd.to_datetime(df['DATE'], utc=True)
             
-            # Mettre en cache
-            self.data_cache[ticker] = df
+            # Tri par date pour éviter les "zigzags"
+            df = df.sort_values('DATE').reset_index(drop=True)
+            
+            # Validation des données
+            df = self._validate_data(df, ticker)
+            
+            # Cache pour éviter les rechargements
+            self.cache[ticker] = df
             
             logger.info(f"✅ Données chargées pour {ticker}: {len(df)} lignes")
             return df
             
         except Exception as e:
-            logger.error(f"❌ Erreur lors du chargement des données {ticker}: {e}")
+            logger.error(f"❌ Erreur chargement {ticker}: {e}")
             return pd.DataFrame()
     
-    def filter_by_period(self, df: pd.DataFrame, period: str) -> pd.DataFrame:
-        """Filtre les données par période"""
-        try:
-            if df.empty:
-                return df
-            
-            # Utiliser la configuration centralisée pour les périodes
-            from config.unified_config import get_config
-            config = get_config()
-            periods = config.periods
-            
-            if period not in periods:
-                logger.warning(f"⚠️ Période non reconnue: {period}, utilisation de toutes les données")
-                return df
-            
-            today = pd.Timestamp.now()
-            days = periods[period]
-            start_date = today - pd.Timedelta(days=days)
-            
-            # Filtrer par date - gérer les timezones
-            # Convertir start_date en timezone aware si nécessaire
-            if df['DATE'].dt.tz is not None and start_date.tz is None:
-                start_date = start_date.tz_localize('UTC')
-            elif df['DATE'].dt.tz is None and start_date.tz is not None:
-                start_date = start_date.tz_localize(None)
-            
-            filtered_df = df[df['DATE'] >= start_date].copy()
-            
-            logger.info(f"✅ Filtrage {period}: {len(filtered_df)} lignes")
-            return filtered_df
-            
-        except Exception as e:
-            logger.error(f"❌ Erreur lors du filtrage {period}: {e}")
-            return df
-    
-    def get_price_data(self, ticker: str, period: str) -> pd.DataFrame:
-        """Récupère les données de prix filtrées"""
-        df = self.load_data(ticker)
+    def _validate_data(self, df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+        """Valide et nettoie les données"""
         if df.empty:
             return df
         
-        return self.filter_by_period(df, period)
+        # Vérifier les colonnes requises
+        required_cols = ['DATE', 'CLOSE', 'VOLUME']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        
+        if missing_cols:
+            logger.warning(f"⚠️ Colonnes manquantes pour {ticker}: {missing_cols}")
+            return pd.DataFrame()
+        
+        # Nettoyer les valeurs NaN/Inf
+        df = df.replace([np.inf, -np.inf], np.nan)
+        
+        # Supprimer les lignes avec des prix invalides
+        df = df.dropna(subset=['CLOSE'])
+        
+        # Vérifier que les prix sont positifs
+        df = df[df['CLOSE'] > 0]
+        
+        if df.empty:
+            logger.error(f"❌ Aucune donnée valide pour {ticker}")
+            return pd.DataFrame()
+        
+        logger.info(f"✅ Données validées pour {ticker}: {len(df)} lignes valides")
+        return df
     
-    def get_volume_data(self, ticker: str, period: str) -> pd.DataFrame:
-        """Récupère les données de volume filtrées"""
-        return self.get_price_data(ticker, period)  # Même source
+    def filter_by_period(self, df: pd.DataFrame, period: str) -> pd.DataFrame:
+        """Filtre les données par période"""
+        if df.empty:
+            return df
+        
+        periods = {
+            "7 derniers jours": 7,
+            "1 mois": 30,
+            "3 mois": 90,
+            "6 derniers mois": 180,
+            "1 an": 365,
+            "3 ans": 1095,
+            "5 ans": 1825,
+            "10 ans": 3650,
+            "Total (toutes les données)": None
+        }
+        
+        if period not in periods:
+            logger.warning(f"⚠️ Période inconnue: {period}")
+            return df
+        
+        days = periods[period]
+        if days is None:
+            return df
+        
+        # Utiliser la dernière date des données comme référence
+        last_date = df['DATE'].max()
+        start_date = last_date - pd.Timedelta(days=days)
+        
+        # Filtrer et trier
+        filtered_df = df[df['DATE'] >= start_date].copy()
+        filtered_df = filtered_df.sort_values('DATE').reset_index(drop=True)
+        
+        logger.info(f"✅ Filtrage {period}: {len(filtered_df)} lignes")
+        return filtered_df
     
-    def get_prediction_data(self, ticker: str, period: str) -> pd.DataFrame:
-        """Récupère les données pour prédiction LSTM"""
-        return self.get_price_data(ticker, period)  # Même source
+    def get_available_tickers(self) -> list:
+        """Retourne la liste des tickers disponibles"""
+        if not self.data_path.exists():
+            return []
+        
+        tickers = []
+        for file_path in self.data_path.glob("*.parquet"):
+            ticker = file_path.stem.replace("_1999_2025", "")
+            tickers.append(ticker)
+        
+        return sorted(tickers)

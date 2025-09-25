@@ -511,6 +511,7 @@ Le système Sentinel2 est maintenant **prêt pour la production** et peut être 
 - **Tests complets** : Couvrir tous les cas d'usage
 - **Logs structurés** : Utiliser le système de logging existant
 - **Gestion d'erreurs** : Try/catch avec logs appropriés
+- **Ajout de nouvelle fonctionnalité** : Si ajout de nouvelle features ou tests les ajouté dans le repo qui lui est attribué
 
 ### **3. BONNES PRATIQUES DE DÉVELOPPEMENT** 💡
 - **Nommage explicite** : Variables et fonctions claires
