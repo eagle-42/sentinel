@@ -15,6 +15,7 @@ data/
 .archive
 .json
 .coverage
+.png
 
 # Ajout des règles Git importantes
 .env
@@ -35,5 +36,8 @@ htmlcov/
 .venv/
 venv/
 env/
+.cursor/settings.json
+.cursorrules
+.cursor/
 
 README.mdREADME.md

@@ -10,7 +10,10 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union
 from loguru import logger
 
-from ..constants import CONSTANTS
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from constants import CONSTANTS
 
 class FinBertAnalyzer:
     """Analyseur de sentiment basé sur FinBERT"""

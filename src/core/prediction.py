@@ -13,7 +13,10 @@ from loguru import logger
 from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-from ..constants import CONSTANTS
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from constants import CONSTANTS
 
 class LSTMModel(nn.Module):
     """Modèle LSTM PyTorch optimisé pour Sentinel2"""

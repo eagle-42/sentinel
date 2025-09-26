@@ -1,5 +1,5 @@
 """
-Page de logs - Affichage des logs de l'application
+Page de logs - Affichage des logs de l'application + Monitoring
 """
 
 import streamlit as st
@@ -7,9 +7,21 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+import sys
+
+# Ajouter le répertoire src au path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from gui.services.monitoring_service import MonitoringService
 
 def show_logs_page():
-    """Affiche la page de logs"""
+    """Affiche la page de logs avec monitoring"""
+    
+    # Initialiser le service de monitoring
+    if 'monitoring_service' not in st.session_state:
+        st.session_state.monitoring_service = MonitoringService()
+    
+    monitoring_service = st.session_state.monitoring_service
     
     # CSS personnalisé
     st.markdown("""
@@ -36,16 +48,152 @@ def show_logs_page():
         .log-warning { border-left-color: #ffc107; }
         .log-error { border-left-color: #dc3545; }
         .log-debug { border-left-color: #6c757d; }
+        .monitoring-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            border-left: 5px solid #6c757d;
+            margin: 1rem 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-online { background-color: #28a745; }
+        .status-offline { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
     </style>
     """, unsafe_allow_html=True)
     
     # Header principal
     st.markdown("""
     <div class="main-header">
-        <h1>📋 Logs - Journal de l'Application</h1>
+        <h1>📋 Logs & Monitoring</h1>
         <p>Surveillance et diagnostic du système Sentinel</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Section Monitoring & Contrôle (en premier)
+    st.header("📊 Monitoring & Contrôle")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # Statut des services
+        try:
+            system_status = monitoring_service.get_system_status()
+            
+            st.markdown("""
+            <div class="monitoring-card">
+                <h4>🔧 Statut des Services</h4>
+            """, unsafe_allow_html=True)
+            
+            for service, status in system_status['services'].items():
+                status_class = f"status-{status}" if status in ['online', 'offline'] else "status-warning"
+                st.markdown(f"""
+                <p><span class="status-indicator {status_class}"></span>{service.title()}: <strong>{status}</strong></p>
+                """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+                <p><strong>Statut global:</strong> {system_status['overall_status']}</p>
+                <p><strong>Services en ligne:</strong> {system_status['online_count']}/{system_status['total_count']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        except Exception as e:
+            st.markdown(f"""
+            <div class="monitoring-card">
+                <h4>❌ Erreur Statut Services</h4>
+                <p>Impossible de vérifier l'état: {str(e)}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col2:
+        # Mini-log des actions
+        try:
+            decisions = monitoring_service.get_recent_trading_decisions(5)
+            
+            st.markdown("""
+            <div class="monitoring-card">
+                <h4>📝 Actions Récentes</h4>
+            """, unsafe_allow_html=True)
+            
+            for decision in decisions:
+                color = "green" if decision['action'] == "ACHETER" else "red" if decision['action'] == "VENDRE" else "orange"
+                st.markdown(f"""
+                <p style="color: {color};">
+                    <strong>{decision['action']}</strong> {decision['ticker']} @ ${decision['price']}<br>
+                    <small>{decision['timestamp'].strftime('%H:%M')} - {decision['reason']}</small>
+                </p>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        except Exception as e:
+            st.markdown(f"""
+            <div class="monitoring-card">
+                <h4>❌ Erreur Actions Récentes</h4>
+                <p>Impossible de charger les actions: {str(e)}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col3:
+        # Alertes
+        try:
+            alerts = monitoring_service.get_alerts()
+            
+            st.markdown("""
+            <div class="monitoring-card">
+                <h4>🚨 Alertes</h4>
+            """, unsafe_allow_html=True)
+            
+            if alerts:
+                for alert in alerts[-3:]:  # 3 dernières alertes
+                    severity_color = "red" if alert['severity'] == "critical" else "orange" if alert['severity'] == "warning" else "blue"
+                    st.markdown(f"""
+                    <p style="color: {severity_color};">
+                        <strong>{alert['type'].title()}</strong><br>
+                        <small>{alert['message']}</small>
+                    </p>
+                    """, unsafe_allow_html=True)
+            else:
+                st.markdown("<p style='color: green;'>✅ Aucune alerte</p>", unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        except Exception as e:
+            st.markdown(f"""
+            <div class="monitoring-card">
+                <h4>❌ Erreur Alertes</h4>
+                <p>Impossible de charger les alertes: {str(e)}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Métriques de performance
+    st.header("📈 Métriques de Performance")
+    
+    try:
+        metrics = monitoring_service.get_performance_metrics()
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("CPU", f"{metrics['cpu_percent']:.1f}%")
+        with col2:
+            st.metric("Mémoire", f"{metrics['memory_percent']:.1f}%")
+        with col3:
+            st.metric("Disque", f"{metrics['disk_percent']:.1f}%")
+        with col4:
+            st.metric("Dernière MAJ", metrics['timestamp'].strftime('%H:%M'))
+    
+    except Exception as e:
+        st.error(f"Impossible de charger les métriques: {e}")
+    
+    st.markdown("---")
     
     # Filtres de logs
     st.header("🔍 Filtres de Logs")
@@ -217,6 +365,7 @@ def show_logs_page():
             hourly_counts = df_logs.groupby(['hour', 'level']).size().unstack(fill_value=0)
             
             st.bar_chart(hourly_counts)
+    
     
     # Informations système
     st.markdown("---")
