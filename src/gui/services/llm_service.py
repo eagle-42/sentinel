@@ -1,240 +1,198 @@
 """
-Service LLM pour l'onglet Production
-Synthèse LLM (Ollama: Mistral ou Phi3 mini)
+Service LLM pour génération de synthèses de trading
+Limite les tokens pour des réponses concises et efficaces
 """
 
 import requests
 import json
-from loguru import logger
-from typing import Dict, Any, List, Optional
 from datetime import datetime
+from typing import Dict, Optional
+from loguru import logger
+import sys
+from pathlib import Path
 
+# Ajouter le chemin src pour les imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from constants import CONSTANTS
 
 class LLMService:
-    """Service LLM pour la synthèse des décisions de trading"""
+    """Service LLM avec limitation de tokens pour synthèses efficaces"""
     
-    def __init__(self, model: str = "mistral", base_url: str = "http://localhost:11434"):
-        self.model = model
-        self.base_url = base_url
-        self.available = self._check_ollama_availability()
+    def __init__(self):
+        self.ollama_url = "http://localhost:11434/api/generate"
+        self.model = "phi3:mini"
+        self.max_tokens = 150  # Limite stricte pour synthèses concises
+        self.max_context = 2000  # Limite du contexte d'entrée
         
-        if self.available:
-            logger.info(f"✅ LLM Service initialisé avec {model}")
-        else:
-            logger.warning("⚠️ Ollama non disponible, utilisation du mode fallback")
+        logger.info("🧠 Service LLM initialisé")
     
-    def _check_ollama_availability(self) -> bool:
-        """Vérifie si Ollama est disponible"""
+    def generate_trading_synthesis(self, ticker: str, recommendation: str, 
+                                 fusion_score: float, price: float, 
+                                 sentiment_score: float = None) -> Dict:
+        """Génère une synthèse concise de la décision de trading"""
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return response.status_code == 200
-        except Exception as e:
-            logger.warning(f"⚠️ Ollama non accessible: {e}")
-            return False
-    
-    def generate_trading_explanation(self, 
-                                   fusion_data: Dict[str, Any],
-                                   sentiment_data: Dict[str, Any],
-                                   price_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Génère une explication LLM de la décision de trading"""
-        try:
-            if not self.available:
-                return self._generate_fallback_explanation(fusion_data, sentiment_data, price_data)
+            # Construire le prompt concis
+            prompt = self._build_concise_prompt(
+                ticker, recommendation, fusion_score, price, sentiment_score
+            )
             
-            # Construire le prompt
-            prompt = self._build_trading_prompt(fusion_data, sentiment_data, price_data)
-            
-            # Appeler Ollama
+            # Appel à Ollama
             response = self._call_ollama(prompt)
             
             if response:
                 return {
-                    "explanation": response,
-                    "confidence": 0.9,
-                    "source": "LLM",
+                    "success": True,
+                    "synthesis": response,
                     "model": self.model,
-                    "timestamp": datetime.now()
+                    "timestamp": datetime.now().isoformat(),
+                    "tokens_used": len(response.split())  # Estimation
                 }
             else:
-                return self._generate_fallback_explanation(fusion_data, sentiment_data, price_data)
-                
-        except Exception as e:
-            logger.error(f"❌ Erreur génération LLM: {e}")
-            return self._generate_fallback_explanation(fusion_data, sentiment_data, price_data)
-    
-    def generate_full_report(self, 
-                           fusion_data: Dict[str, Any],
-                           sentiment_data: Dict[str, Any],
-                           price_data: Dict[str, Any],
-                           prediction_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Génère un rapport complet LLM"""
-        try:
-            if not self.available:
-                return self._generate_fallback_report(fusion_data, sentiment_data, price_data, prediction_data)
-            
-            # Construire le prompt pour rapport complet
-            prompt = self._build_full_report_prompt(fusion_data, sentiment_data, price_data, prediction_data)
-            
-            # Appeler Ollama
-            response = self._call_ollama(prompt)
-            
-            if response:
                 return {
-                    "full_report": response,
-                    "confidence": 0.9,
-                    "source": "LLM",
+                    "success": False,
+                    "synthesis": "Service LLM indisponible",
                     "model": self.model,
-                    "timestamp": datetime.now()
+                    "timestamp": datetime.now().isoformat(),
+                    "tokens_used": 0
                 }
-            else:
-                return self._generate_fallback_report(fusion_data, sentiment_data, price_data, prediction_data)
                 
         except Exception as e:
-            logger.error(f"❌ Erreur rapport complet LLM: {e}")
-            return self._generate_fallback_report(fusion_data, sentiment_data, price_data, prediction_data)
+            logger.error(f"❌ Erreur génération synthèse: {e}")
+            return {
+                "success": False,
+                "synthesis": f"Erreur: {str(e)}",
+                "model": self.model,
+                "timestamp": datetime.now().isoformat(),
+                "tokens_used": 0
+            }
+    
+    def _build_concise_prompt(self, ticker: str, recommendation: str, 
+                            fusion_score: float, price: float, 
+                            sentiment_score: float = None) -> str:
+        """Construit un prompt concis pour la synthèse"""
+        
+        # Informations de base
+        base_info = f"Ticker: {ticker}, Prix: ${price:.2f}, Recommandation: {recommendation}, Score: {fusion_score:.3f}"
+        
+        # Ajouter sentiment si disponible
+        if sentiment_score is not None:
+            base_info += f", Sentiment: {sentiment_score:.3f}"
+        
+        # Prompt concis avec limitation stricte
+        prompt = f"""
+Analyse trading concise (max 100 mots):
+
+{base_info}
+
+Synthèse: Explique brièvement pourquoi {recommendation} pour {ticker}.
+Focus: Score de fusion, tendance prix, sentiment.
+Format: 2-3 phrases maximum.
+"""
+        
+        return prompt.strip()
     
     def _call_ollama(self, prompt: str) -> Optional[str]:
-        """Appelle l'API Ollama"""
+        """Appelle l'API Ollama avec limitation de tokens"""
         try:
             payload = {
                 "model": self.model,
                 "prompt": prompt,
                 "stream": False,
                 "options": {
+                    "num_predict": self.max_tokens,  # Limite stricte
                     "temperature": 0.7,
                     "top_p": 0.9,
-                    "max_tokens": 500
+                    "stop": ["\n\n", "---", "##"]  # Arrêts pour concision
                 }
             }
             
             response = requests.post(
-                f"{self.base_url}/api/generate",
-                json=payload,
+                self.ollama_url, 
+                json=payload, 
                 timeout=30
             )
             
             if response.status_code == 200:
                 result = response.json()
-                return result.get("response", "").strip()
+                synthesis = result.get('response', '').strip()
+                
+                # Vérifier la longueur
+                if len(synthesis.split()) > self.max_tokens:
+                    synthesis = ' '.join(synthesis.split()[:self.max_tokens]) + "..."
+                
+                logger.info(f"✅ Synthèse générée: {len(synthesis.split())} mots")
+                return synthesis
             else:
                 logger.warning(f"⚠️ Erreur API Ollama: {response.status_code}")
                 return None
                 
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Erreur connexion Ollama: {e}")
+            return None
         except Exception as e:
             logger.error(f"❌ Erreur appel Ollama: {e}")
             return None
     
-    def _build_trading_prompt(self, fusion_data: Dict, sentiment_data: Dict, price_data: Dict) -> str:
-        """Construit le prompt pour l'explication de trading"""
-        return f"""
-Analysez cette situation de trading et fournissez une explication claire et concise :
-
-DONNÉES DE FUSION:
-- Score de fusion: {fusion_data.get('fusion_score', 0):.2f}
-- Confiance: {fusion_data.get('confidence', 0):.2f}
-- Recommandation: {fusion_data.get('recommendation', 'ATTENDRE')}
-
-SENTIMENT DU MARCHÉ:
-- Sentiment moyen: {sentiment_data.get('avg_sentiment', 0):.2f}
-- Articles analysés: {sentiment_data.get('total_articles', 0)}
-- Tendance: {sentiment_data.get('sentiment_trend', 'stable')}
-
-PRIX:
-- Dernier prix: ${price_data.get('last_price', 0):.2f}
-- Variation: {price_data.get('change_percent', 0):.2f}%
-
-Fournissez une explication en 2-3 phrases expliquant pourquoi cette recommandation est justifiée, en mettant l'accent sur les facteurs clés.
-"""
+    def check_service_status(self) -> Dict:
+        """Vérifie le statut du service Ollama"""
+        try:
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            
+            if response.status_code == 200:
+                models = response.json().get('models', [])
+                phi3_available = any('phi3' in model.get('name', '') for model in models)
+                
+                return {
+                    "online": True,
+                    "model_available": phi3_available,
+                    "models": [model.get('name', '') for model in models],
+                    "status": "✅ Service actif" if phi3_available else "⚠️ Modèle phi3 non trouvé"
+                }
+            else:
+                return {
+                    "online": False,
+                    "model_available": False,
+                    "models": [],
+                    "status": "❌ Service indisponible"
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur vérification statut: {e}")
+            return {
+                "online": False,
+                "model_available": False,
+                "models": [],
+                "status": f"❌ Erreur: {str(e)}"
+            }
     
-    def _build_full_report_prompt(self, fusion_data: Dict, sentiment_data: Dict, 
-                                price_data: Dict, prediction_data: Dict) -> str:
-        """Construit le prompt pour le rapport complet"""
-        return f"""
-Générez un rapport d'analyse complet pour cette situation de trading :
-
-DONNÉES DE FUSION:
-- Score: {fusion_data.get('fusion_score', 0):.2f}
-- Confiance: {fusion_data.get('confidence', 0):.2f}
-- Recommandation: {fusion_data.get('recommendation', 'ATTENDRE')}
-- Poids: {fusion_data.get('weights', {})}
-
-SENTIMENT:
-- Score moyen: {sentiment_data.get('avg_sentiment', 0):.2f}
-- Articles: {sentiment_data.get('total_articles', 0)}
-- Positifs: {sentiment_data.get('positive_count', 0)}
-- Négatifs: {sentiment_data.get('negative_count', 0)}
-
-PRIX:
-- Prix: ${price_data.get('last_price', 0):.2f}
-- Variation: {price_data.get('change_percent', 0):.2f}%
-
-PRÉDICTION:
-- Score: {prediction_data.get('prediction_score', 0):.2f}
-- Confiance: {prediction_data.get('confidence', 0):.2f}
-
-Générez un rapport détaillé incluant:
-1. Résumé exécutif
-2. Analyse des signaux
-3. Facteurs de risque
-4. Recommandation finale
-5. Prochaines étapes
-"""
-    
-    def _generate_fallback_explanation(self, fusion_data: Dict, sentiment_data: Dict, price_data: Dict) -> Dict[str, Any]:
-        """Génère une explication de fallback"""
-        recommendation = fusion_data.get('recommendation', 'ATTENDRE')
-        score = fusion_data.get('fusion_score', 0.5)
-        confidence = fusion_data.get('confidence', 0.7)
-        
-        if recommendation == "ACHETER":
-            explanation = f"Recommandation d'ACHAT basée sur un score de fusion de {score:.2f} avec une confiance de {confidence:.1%}. Les signaux de prix et de sentiment sont favorables."
-        elif recommendation == "VENDRE":
-            explanation = f"Recommandation de VENTE basée sur un score de fusion de {score:.2f} avec une confiance de {confidence:.1%}. Les signaux indiquent une faiblesse du marché."
-        else:
-            explanation = f"Recommandation d'ATTENTE basée sur un score de fusion de {score:.2f} avec une confiance de {confidence:.1%}. Les signaux sont mitigés, attendre une confirmation."
-        
-        return {
-            "explanation": explanation,
-            "confidence": confidence,
-            "source": "Fallback",
-            "model": "Simulation",
-            "timestamp": datetime.now()
-        }
-    
-    def _generate_fallback_report(self, fusion_data: Dict, sentiment_data: Dict, 
-                                price_data: Dict, prediction_data: Dict) -> Dict[str, Any]:
-        """Génère un rapport de fallback"""
-        report = f"""
-# RAPPORT D'ANALYSE DE TRADING
-
-## Résumé Exécutif
-Recommandation: {fusion_data.get('recommendation', 'ATTENDRE')}
-Score de fusion: {fusion_data.get('fusion_score', 0):.2f}
-Confiance: {fusion_data.get('confidence', 0):.1%}
-
-## Analyse des Signaux
-- **Prix**: ${price_data.get('last_price', 0):.2f} ({price_data.get('change_percent', 0):.2f}%)
-- **Sentiment**: {sentiment_data.get('avg_sentiment', 0):.2f} ({sentiment_data.get('total_articles', 0)} articles)
-- **Prédiction**: {prediction_data.get('prediction_score', 0):.2f}
-
-## Facteurs de Risque
-- Confiance modérée des signaux
-- Volatilité du marché
-- Données limitées
-
-## Recommandation Finale
-{fusion_data.get('recommendation', 'ATTENDRE')} - Attendre une confirmation plus forte des signaux.
-
-## Prochaines Étapes
-1. Surveiller l'évolution des prix
-2. Analyser de nouveaux articles
-3. Réévaluer dans 1-2 heures
-"""
-        
-        return {
-            "full_report": report,
-            "confidence": 0.7,
-            "source": "Fallback",
-            "model": "Simulation",
-            "timestamp": datetime.now()
-        }
+    def save_synthesis(self, ticker: str, synthesis_data: Dict):
+        """Sauvegarde une synthèse dans les logs"""
+        try:
+            from pathlib import Path
+            data_path = CONSTANTS.get_data_path()
+            synthesis_path = data_path / "trading" / "llm_synthesis"
+            synthesis_path.mkdir(parents=True, exist_ok=True)
+            
+            # Fichier par ticker et date
+            filename = f"{ticker}_synthesis_{datetime.now().strftime('%Y%m%d')}.json"
+            file_path = synthesis_path / filename
+            
+            # Charger les synthèses existantes
+            if file_path.exists():
+                with open(file_path, 'r') as f:
+                    syntheses = json.load(f)
+            else:
+                syntheses = []
+            
+            # Ajouter la nouvelle synthèse
+            syntheses.append(synthesis_data)
+            
+            # Sauvegarder
+            with open(file_path, 'w') as f:
+                json.dump(syntheses, f, indent=2)
+            
+            logger.info(f"✅ Synthèse sauvegardée: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur sauvegarde synthèse: {e}")

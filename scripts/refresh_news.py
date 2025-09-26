@@ -230,7 +230,7 @@ class NewsRefresher:
         return sentiment_by_ticker
     
     def save_news_data(self, news_items: List[Dict[str, Any]]) -> Path:
-        """Sauvegarde les données de news"""
+        """Sauvegarde les données de news dans un fichier unifié"""
         if not news_items:
             logger.warning("⚠️ Aucune donnée de news à sauvegarder")
             return None
@@ -238,17 +238,33 @@ class NewsRefresher:
         # Convertir en DataFrame
         df = pd.DataFrame(news_items)
         
-        # Sauvegarder
-        file_path = CONSTANTS.SENTIMENT_DIR / f"news_{datetime.now().strftime('%Y%m%d_%H%M%S')}.parquet"
+        # Fichier unifié pour toutes les news
+        file_path = CONSTANTS.NEWS_DIR / "all_news.parquet"
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
+        # Charger les données existantes et fusionner
+        existing_data = pd.DataFrame()
+        if file_path.exists():
+            try:
+                existing_data = pd.read_parquet(file_path)
+                logger.info(f"📊 News existantes: {len(existing_data)} lignes")
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur lecture news existantes: {e}")
+        
+        # Fusionner les données (éviter les doublons)
+        if not existing_data.empty:
+            # Supprimer les doublons basés sur title + source + timestamp
+            df = pd.concat([existing_data, df], ignore_index=True)
+            df = df.drop_duplicates(subset=['title', 'source', 'timestamp'], keep='last')
+        
+        # Sauvegarder
         df.to_parquet(file_path, index=False)
-        logger.info(f"💾 News sauvegardées: {file_path}")
+        logger.info(f"💾 News sauvegardées: {file_path} ({len(df)} lignes total)")
         
         return file_path
     
     def save_sentiment_data(self, sentiment_data: Dict[str, Any]) -> Path:
-        """Sauvegarde les données de sentiment agrégées"""
+        """Sauvegarde les données de sentiment dans un fichier unifié"""
         # Convertir en DataFrame
         sentiment_records = []
         for ticker, data in sentiment_data.items():
@@ -262,12 +278,28 @@ class NewsRefresher:
         
         df = pd.DataFrame(sentiment_records)
         
-        # Sauvegarder
-        file_path = CONSTANTS.SENTIMENT_DIR / f"sentiment_{datetime.now().strftime('%Y%m%d_%H%M%S')}.parquet"
+        # Fichier unifié pour le sentiment
+        file_path = CONSTANTS.SENTIMENT_DIR / "spy_sentiment.parquet"
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
+        # Charger les données existantes et fusionner
+        existing_data = pd.DataFrame()
+        if file_path.exists():
+            try:
+                existing_data = pd.read_parquet(file_path)
+                logger.info(f"📊 Sentiment existant: {len(existing_data)} lignes")
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur lecture sentiment existant: {e}")
+        
+        # Fusionner les données (éviter les doublons)
+        if not existing_data.empty:
+            # Supprimer les doublons basés sur ticker + ts_utc
+            df = pd.concat([existing_data, df], ignore_index=True)
+            df = df.drop_duplicates(subset=['ticker', 'ts_utc'], keep='last')
+        
+        # Sauvegarder
         df.to_parquet(file_path, index=False)
-        logger.info(f"💾 Sentiment sauvegardé: {file_path}")
+        logger.info(f"💾 Sentiment sauvegardé: {file_path} ({len(df)} lignes total)")
         
         return file_path
     

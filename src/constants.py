@@ -172,8 +172,11 @@ class SentinelConstants:
     # =============================================================================
     
     @classmethod
-    def get_data_path(cls, data_type: str, ticker: str = None, interval: str = None) -> Path:
+    def get_data_path(cls, data_type: str = None, ticker: str = None, interval: str = None) -> Path:
         """Retourne le chemin vers les données"""
+        if data_type is None:
+            return cls.DATA_ROOT
+        
         if data_type == "prices":
             return cls.PRICES_DIR / f"{ticker.lower()}_{interval}.parquet"
         elif data_type == "news":

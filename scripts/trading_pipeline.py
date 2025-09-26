@@ -312,17 +312,36 @@ class TradingPipeline:
         return result
     
     def _save_decisions_log(self, decisions: List[Dict[str, Any]]):
-        """Sauvegarde le log des décisions"""
+        """Sauvegarde le log des décisions dans un fichier unifié"""
         if not decisions:
             return
         
-        log_path = CONSTANTS.DATA_ROOT / "trading" / "decisions_log" / f"decisions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        # Fichier unifié pour toutes les décisions
+        log_path = CONSTANTS.DATA_ROOT / "trading" / "decisions_log" / "trading_decisions.json"
         log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Charger les décisions existantes
+        existing_decisions = []
+        if log_path.exists():
+            try:
+                with open(log_path, 'r') as f:
+                    existing_decisions = json.load(f)
+                logger.debug(f"📊 Décisions existantes: {len(existing_decisions)}")
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur lecture décisions existantes: {e}")
+        
+        # Fusionner les nouvelles décisions
+        all_decisions = existing_decisions + decisions
+        
+        # Garder seulement les 1000 dernières décisions pour éviter la surcharge
+        if len(all_decisions) > 1000:
+            all_decisions = all_decisions[-1000:]
+            logger.info(f"📊 Décisions limitées à 1000 (supprimé {len(existing_decisions) + len(decisions) - 1000} anciennes)")
         
         try:
             with open(log_path, 'w') as f:
-                json.dump(decisions, f, indent=2)
-            logger.debug(f"💾 Log des décisions sauvegardé: {log_path}")
+                json.dump(all_decisions, f, indent=2)
+            logger.debug(f"💾 Log des décisions sauvegardé: {log_path} ({len(all_decisions)} total)")
         except Exception as e:
             logger.error(f"❌ Erreur sauvegarde log décisions: {e}")
 

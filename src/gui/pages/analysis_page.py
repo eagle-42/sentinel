@@ -63,6 +63,34 @@ def show_analysis_page():
     def load_ticker_data(ticker: str):
         """Charge les données d'un ticker avec cache"""
         services = init_services()
+        
+        # Essayer d'abord les données 15min récentes
+        try:
+            from gui.services.data_monitor_service import DataMonitorService
+            data_monitor = DataMonitorService()
+            data_15min, metadata = data_monitor.get_latest_15min_data(ticker)
+            
+            if not data_15min.empty and metadata.get('status') == 'ok':
+                # Convertir les données 15min au format attendu par data_service
+                data_15min = data_15min.rename(columns={
+                    'ts_utc': 'DATE',
+                    'open': 'Open',
+                    'high': 'High',
+                    'low': 'Low',
+                    'close': 'Close',
+                    'volume': 'Volume'
+                })
+                # Normaliser les colonnes en majuscules comme data_service
+                data_15min.columns = data_15min.columns.str.upper()
+                # Conversion des dates en UTC
+                data_15min['DATE'] = pd.to_datetime(data_15min['DATE'], utc=True)
+                # Tri par date
+                data_15min = data_15min.sort_values('DATE').reset_index(drop=True)
+                return data_15min
+        except Exception as e:
+            st.warning(f"⚠️ Impossible de charger les données 15min: {e}")
+        
+        # Fallback sur les données historiques
         return services['data_service'].load_data(ticker)
     
     # Initialisation des services
