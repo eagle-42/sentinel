@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import json
 from pathlib import Path
 import sys
+import streamlit as st
 
 # Ajouter le répertoire src au path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -168,6 +169,9 @@ class MonitoringService:
     def _check_crawler_status(self) -> str:
         """Vérifie le statut du crawler"""
         try:
+            # Vérifier l'état des services dans la session
+            if hasattr(st, 'session_state') and not st.session_state.get('services_running', True):
+                return "offline"
             # Simulation de vérification (en production, vérifier le vrai service)
             return "online"
         except Exception:
@@ -176,6 +180,9 @@ class MonitoringService:
     def _check_sentiment_status(self) -> str:
         """Vérifie le statut du service de sentiment"""
         try:
+            # Vérifier l'état des services dans la session
+            if hasattr(st, 'session_state') and not st.session_state.get('services_running', True):
+                return "offline"
             # Simulation de vérification
             return "online"
         except Exception:
@@ -184,6 +191,9 @@ class MonitoringService:
     def _check_prediction_status(self) -> str:
         """Vérifie le statut du service de prédiction"""
         try:
+            # Vérifier l'état des services dans la session
+            if hasattr(st, 'session_state') and not st.session_state.get('services_running', True):
+                return "offline"
             # Simulation de vérification
             return "online"
         except Exception:
@@ -192,6 +202,9 @@ class MonitoringService:
     def _check_fusion_status(self) -> str:
         """Vérifie le statut du service de fusion"""
         try:
+            # Vérifier l'état des services dans la session
+            if hasattr(st, 'session_state') and not st.session_state.get('services_running', True):
+                return "offline"
             # Simulation de vérification
             return "online"
         except Exception:
@@ -200,6 +213,9 @@ class MonitoringService:
     def _check_llm_status(self) -> str:
         """Vérifie le statut du service LLM"""
         try:
+            # Vérifier l'état des services dans la session
+            if hasattr(st, 'session_state') and not st.session_state.get('services_running', True):
+                return "offline"
             # Simulation de vérification
             return "online"
         except Exception:

@@ -11,13 +11,15 @@ import sys
 # Ajouter le répertoire src au path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from gui.services.data_service import DataService
-from gui.services.chart_service import ChartService
-from gui.services.prediction_service import PredictionService
+# Import du gestionnaire de services centralisé
+from gui.services.service_manager import service_manager
 from gui.constants import normalize_columns
 
 def show_analysis_page():
     """Affiche la page d'analyse"""
+    
+    # Vérifier l'état des services
+    services_running = st.session_state.get('services_running', True)
     
     # CSS personnalisé
     st.markdown("""
@@ -52,16 +54,28 @@ def show_analysis_page():
     # Initialisation des services SANS cache pour la réactivité
     def init_services():
         """Initialise les services sans cache pour la réactivité"""
+        if not services_running:
+            return {
+                'data_service': None,
+                'chart_service': None,
+                'prediction_service': None
+            }
+        # Utiliser le gestionnaire de services centralisé
+        all_services = service_manager.get_services()
         return {
-            'data_service': DataService(),
-            'chart_service': ChartService(),
-            'prediction_service': PredictionService()
+            'data_service': all_services.get('data_service'),
+            'chart_service': all_services.get('chart_service'),
+            'prediction_service': all_services.get('prediction_service')
         }
     
     # Chargement des données SANS cache pour permettre le filtrage réactif
     def load_ticker_data(ticker: str):
         """Charge les données d'un ticker sans cache pour réactivité"""
         services = init_services()
+        
+        # Vérifier si les services sont disponibles
+        if not services['data_service']:
+            return pd.DataFrame()  # Retourner un DataFrame vide si services arrêtés
         
         # Pour l'analyse, utiliser TOUJOURS les données historiques qui ont plus de données
         # Les données 15min sont limitées à quelques jours seulement
@@ -107,6 +121,10 @@ def show_analysis_page():
     data_service = services['data_service']
     chart_service = services['chart_service']
     prediction_service = services['prediction_service']
+    
+    # Afficher un message si les services sont arrêtés
+    if not services_running:
+        st.warning("🔧 **Services arrêtés** - Seules les données historiques sont disponibles pour l'analyse.")
     
     # Sidebar - Paramètres d'analyse (uniquement pour Analysis)
     with st.sidebar:
@@ -247,8 +265,11 @@ def show_analysis_page():
     
     if analysis_type == "Prix":
         # Graphique de prix avec moyennes mobiles
-        chart = chart_service.create_price_chart(filtered_df, ticker, period)
-        st.plotly_chart(chart, use_container_width=True, key=f"price_chart_{chart_key}")
+        if chart_service:
+            chart = chart_service.create_price_chart(filtered_df, ticker, period)
+            st.plotly_chart(chart, use_container_width=True, key=f"price_chart_{chart_key}")
+        else:
+            st.info("🔧 Service de graphiques non disponible - Services arrêtés")
         
         # Métriques de prix
         col1, col2 = st.columns(2)
@@ -272,8 +293,11 @@ def show_analysis_page():
     
     elif analysis_type == "Volume":
         # Graphique de volume avec volatilité
-        chart = chart_service.create_volume_chart(filtered_df, ticker, period)
-        st.plotly_chart(chart, use_container_width=True, key=f"volume_chart_{chart_key}")
+        if chart_service:
+            chart = chart_service.create_volume_chart(filtered_df, ticker, period)
+            st.plotly_chart(chart, use_container_width=True, key=f"volume_chart_{chart_key}")
+        else:
+            st.info("🔧 Service de graphiques non disponible - Services arrêtés")
         
         # Métriques de volume
         col1, col2 = st.columns(2)
@@ -296,8 +320,11 @@ def show_analysis_page():
     
     elif analysis_type == "Sentiment":
         # Graphique de sentiment
-        chart = chart_service.create_sentiment_chart(filtered_df, ticker, period)
-        st.plotly_chart(chart, use_container_width=True, key=f"sentiment_chart_{chart_key}")
+        if chart_service:
+            chart = chart_service.create_sentiment_chart(filtered_df, ticker, period)
+            st.plotly_chart(chart, use_container_width=True, key=f"sentiment_chart_{chart_key}")
+        else:
+            st.info("🔧 Service de graphiques non disponible - Services arrêtés")
         
         # Calcul du sentiment
         log_returns = np.log(filtered_df['close'] / filtered_df['close'].shift(1)).fillna(0)
@@ -323,7 +350,9 @@ def show_analysis_page():
                 st.info("🟡 **HOLD** - Sentiment neutre")
     
     elif analysis_type == "Prédiction":
-        if ticker == "SPY":
+        if not prediction_service or not chart_service:
+            st.info("🔧 Services de prédiction non disponibles - Services arrêtés")
+        elif ticker == "SPY":
             # Graphique de prédiction LSTM
             with st.spinner("Génération des prédictions LSTM..."):
                 prediction_data = prediction_service.predict(filtered_df, horizon=20)
@@ -362,17 +391,3 @@ def show_analysis_page():
             st.error("❌ Prédictions LSTM disponibles uniquement pour SPY")
             st.info("💡 Utilisez SPY pour les prédictions LSTM")
     
-    # Informations sur les données
-    st.markdown("---")
-    st.markdown("#### 📋 Informations sur les données")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"**📅 Période** : {period}")
-        st.markdown(f"**📊 Points de données** : {len(filtered_df)}")
-    with col2:
-        st.markdown(f"**📈 Date de début** : {filtered_df['date'].min().strftime('%Y-%m-%d')}")
-        st.markdown(f"**📉 Date de fin** : {filtered_df['date'].max().strftime('%Y-%m-%d')}")
-    with col3:
-        st.markdown(f"**💰 Prix min** : ${filtered_df['close'].min():.2f}")
-        st.markdown(f"**💰 Prix max** : ${filtered_df['close'].max():.2f}")

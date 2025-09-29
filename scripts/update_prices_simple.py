@@ -15,8 +15,8 @@ def create_mock_data(ticker: str) -> pd.DataFrame:
     try:
         print(f"📊 Création de données de test pour {ticker}...")
         
-        # Créer des données des 7 derniers jours
-        end_date = datetime.now()
+        # Créer des données des 7 derniers jours en UTC
+        end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=7)
         
         # Générer des timestamps toutes les 15 minutes

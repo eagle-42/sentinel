@@ -84,7 +84,7 @@ class FusionService:
                     "sentiment": 0.3,
                     "prediction": 0.3
                 }
-                thresholds = {"buy": 0.1, "sell": -0.1}
+                thresholds = {"buy": 0.05, "sell": -0.05}
             
             # Déterminer la recommandation avec seuils adaptatifs
             recommendation = self._get_adaptive_recommendation(fusion_score, thresholds)
@@ -172,9 +172,13 @@ class FusionService:
     
     def _get_adaptive_recommendation(self, fusion_score: float, thresholds: Dict[str, float]) -> str:
         """Détermine la recommandation avec seuils adaptatifs"""
-        if fusion_score > thresholds.get("buy", 0.1):
+        # Seuils plus sensibles pour générer plus de BUY/SELL
+        buy_threshold = thresholds.get("buy", 0.05)  # Réduit de 0.1 à 0.05
+        sell_threshold = thresholds.get("sell", -0.05)  # Réduit de -0.1 à -0.05
+        
+        if fusion_score > buy_threshold:
             return "BUY"
-        elif fusion_score < thresholds.get("sell", -0.1):
+        elif fusion_score < sell_threshold:
             return "SELL"
         else:
             return "HOLD"
@@ -188,13 +192,13 @@ class FusionService:
                     "avg_score": 0.5,
                     "last_recommendation": "ATTENDRE",
                     "current_weights": {"price": 0.33, "sentiment": 0.33, "prediction": 0.34},
-                    "current_thresholds": {"buy": 0.1, "sell": -0.1}
+                    "current_thresholds": {"buy": 0.05, "sell": -0.05}
                 }
             
             recent_data = self.fusion_history[-10:]  # 10 dernières entrées
             avg_score = np.mean([d["fusion_score"] for d in recent_data])
             last_recommendation = recent_data[-1]["recommendation"] if recent_data else "ATTENDRE"
-            current_thresholds = recent_data[-1].get("thresholds", {"buy": 0.1, "sell": -0.1})
+            current_thresholds = recent_data[-1].get("thresholds", {"buy": 0.05, "sell": -0.05})
             current_weights = recent_data[-1]["weights"] if recent_data else {"price": 0.33, "sentiment": 0.33, "prediction": 0.34}
             
             return {
@@ -214,7 +218,7 @@ class FusionService:
             }
     
     def _simulate_fusion_score(self, price: float, sentiment: float, prediction: float) -> float:
-        """Simule un score de fusion (fallback)"""
+        """Simule un score de fusion (fallback) avec plus de variabilité"""
         # Poids adaptatifs basés sur la volatilité des signaux
         weights = [0.4, 0.3, 0.3]  # price, sentiment, prediction
         signals = [price, sentiment, prediction]
@@ -222,8 +226,13 @@ class FusionService:
         # Calcul pondéré
         fusion_score = sum(w * s for w, s in zip(weights, signals))
         
-        # Normaliser entre 0 et 1
-        return max(0, min(1, fusion_score))
+        # Ajouter de la variabilité pour générer plus de BUY/SELL
+        import random
+        variation = random.uniform(-0.1, 0.1)  # Variation de ±10%
+        fusion_score += variation
+        
+        # Normaliser entre -0.5 et 1.5 pour permettre plus de BUY/SELL
+        return max(-0.5, min(1.5, fusion_score))
     
     def _get_recommendation(self, score: float, confidence: float) -> str:
         """Détermine la recommandation basée sur le score et la confiance"""

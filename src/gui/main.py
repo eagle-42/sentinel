@@ -10,6 +10,10 @@ import sys
 # Ajouter le répertoire src au path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Configuration des logs AVANT tout import
+from gui.config.logging_config import setup_logging
+setup_logging()
+
 # Imports au niveau du module (bonnes pratiques officielles)
 from gui.pages.analysis_page import show_analysis_page
 from gui.pages.production_page import show_production_page

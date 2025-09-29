@@ -29,6 +29,70 @@
 
 ---
 
+## 🚀 **DÉMARRAGE RAPIDE**
+
+### **1. Installation et Configuration**
+```bash
+# Cloner le projet
+git clone <repository-url>
+cd sentinel2
+
+# Installer les dépendances
+uv sync
+
+# Copier le fichier d'environnement
+cp env.example .env
+```
+
+### **2. Démarrage des Services**
+
+#### **Option A: Script de gestion complet (Recommandé)**
+```bash
+# Mode production (avec Ollama)
+./scripts/sentinel2.sh prod
+
+# Mode développement (sans Ollama)
+./scripts/sentinel2.sh dev
+
+# Arrêter l'application
+./scripts/sentinel2.sh stop
+
+# Vérifier le statut
+./scripts/sentinel2.sh status
+```
+
+#### **Option B: Makefile**
+```bash
+# Démarrer l'application
+make start
+
+# Mode développement
+make dev
+
+# Arrêter l'application
+make stop
+
+# Vérifier le statut
+make status
+```
+
+#### **Option C: Manuel**
+```bash
+# Avec Ollama (LLM activé)
+ollama serve &
+uv run streamlit run src/gui/main.py --server.port 8501
+
+# Sans Ollama (LLM désactivé)
+uv run streamlit run src/gui/main.py --server.port 8501
+```
+
+### **3. Accès à l'Interface**
+- **URL** : http://localhost:8501
+- **Pages disponibles** : Production, Analysis, Logs
+- **Services** : Démarrer/Arrêter via l'interface
+
+---
+
 ## 🎯 **BONNES PRATIQUES RESPECTÉES**
 
 ### ✅ **RÈGLES STRICTES IMPLÉMENTÉES**

@@ -88,8 +88,8 @@ class SentinelConstants:
         "sell": -0.05
     }
     NORMAL_VOLATILITY_THRESHOLDS: Dict[str, float] = {
-        "buy": 0.1,       # Volatilité normale = seuils équilibrés
-        "sell": -0.1
+        "buy": 0.05,      # Volatilité normale = seuils plus sensibles
+        "sell": -0.05
     }
     HIGH_VOLATILITY_THRESHOLDS: Dict[str, float] = {
         "buy": 0.2,       # Haute volatilité = seuils élevés

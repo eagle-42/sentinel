@@ -12,16 +12,21 @@ import sys
 # Ajouter le répertoire src au path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from gui.services.monitoring_service import MonitoringService
+# Import du gestionnaire de services centralisé
+from gui.services.service_manager import service_manager
 
 def show_logs_page():
     """Affiche la page de logs avec monitoring"""
     
-    # Initialiser le service de monitoring
-    if 'monitoring_service' not in st.session_state:
-        st.session_state.monitoring_service = MonitoringService()
+    # Vérifier l'état des services
+    services_running = st.session_state.get('services_running', True)
     
-    monitoring_service = st.session_state.monitoring_service
+    # Utiliser le gestionnaire de services centralisé
+    if services_running:
+        all_services = service_manager.get_services()
+        monitoring_service = all_services.get('monitoring_service')
+    else:
+        monitoring_service = None
     
     # CSS personnalisé
     st.markdown("""
@@ -95,10 +100,16 @@ def show_logs_page():
             """, unsafe_allow_html=True)
         
         except Exception as e:
-            st.markdown(f"""
+            st.markdown("""
             <div class="monitoring-card">
-                <h4>❌ Erreur Statut Services</h4>
-                <p>Impossible de vérifier l'état: {str(e)}</p>
+                <h4>🔧 Statut des Services</h4>
+                <p><span class="status-indicator status-offline"></span>Crawler: <strong>offline</strong></p>
+                <p><span class="status-indicator status-offline"></span>Sentiment: <strong>offline</strong></p>
+                <p><span class="status-indicator status-offline"></span>Prediction: <strong>offline</strong></p>
+                <p><span class="status-indicator status-offline"></span>Fusion: <strong>offline</strong></p>
+                <p><span class="status-indicator status-offline"></span>Llm: <strong>offline</strong></p>
+                <p><strong>Statut global:</strong> offline</p>
+                <p><strong>Services en ligne:</strong> 0/5</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -133,10 +144,13 @@ def show_logs_page():
             st.markdown("</div>", unsafe_allow_html=True)
         
         except Exception as e:
-            st.markdown(f"""
+            st.markdown("""
             <div class="monitoring-card">
-                <h4>❌ Erreur Actions Récentes</h4>
-                <p>Impossible de charger les actions: {str(e)}</p>
+                <h4>📝 Actions Récentes</h4>
+                <p style="color: #6c757d;">
+                    <strong>Services arrêtés</strong><br>
+                    <small>Aucune action disponible</small>
+                </p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -165,32 +179,50 @@ def show_logs_page():
             st.markdown("</div>", unsafe_allow_html=True)
         
         except Exception as e:
-            st.markdown(f"""
+            st.markdown("""
             <div class="monitoring-card">
-                <h4>❌ Erreur Alertes</h4>
-                <p>Impossible de charger les alertes: {str(e)}</p>
+                <h4>🚨 Alertes</h4>
+                <p style="color: #6c757d;">
+                    <strong>Services arrêtés</strong><br>
+                    <small>Aucune alerte disponible</small>
+                </p>
             </div>
             """, unsafe_allow_html=True)
     
     # Métriques de performance
     st.header("📈 Métriques de Performance")
     
-    try:
-        metrics = monitoring_service.get_performance_metrics()
+    if monitoring_service:
+        try:
+            metrics = monitoring_service.get_performance_metrics()
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("CPU", f"{metrics['cpu_percent']:.1f}%")
+            with col2:
+                st.metric("Mémoire", f"{metrics['memory_percent']:.1f}%")
+            with col3:
+                st.metric("Disque", f"{metrics['disk_percent']:.1f}%")
+            with col4:
+                st.metric("Dernière MAJ", metrics['timestamp'].strftime('%H:%M'))
         
+        except Exception as e:
+            st.error(f"Impossible de charger les métriques: {e}")
+    else:
+        # Services arrêtés - Afficher des métriques à 0
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("CPU", f"{metrics['cpu_percent']:.1f}%")
+            st.metric("CPU", "0.0%")
         with col2:
-            st.metric("Mémoire", f"{metrics['memory_percent']:.1f}%")
+            st.metric("Mémoire", "0.0%")
         with col3:
-            st.metric("Disque", f"{metrics['disk_percent']:.1f}%")
+            st.metric("Disque", "0.0%")
         with col4:
-            st.metric("Dernière MAJ", metrics['timestamp'].strftime('%H:%M'))
-    
-    except Exception as e:
-        st.error(f"Impossible de charger les métriques: {e}")
+            st.metric("Dernière MAJ", "N/A")
+        
+        st.info("🔧 Services arrêtés - Métriques à 0")
     
     st.markdown("---")
     
@@ -317,50 +349,6 @@ def show_logs_page():
     except Exception as e:
         st.error(f"Erreur lors de la lecture des logs: {e}")
     
-    st.markdown("---")
-    
-    # Générer les logs d'exemple pour les tests
-    st.subheader("📋 Logs d'Exemple (Tests)")
-    logs = generate_sample_logs()
-    
-    # Filtrer les logs
-    filtered_logs = logs
-    
-    if log_level != "Tous":
-        filtered_logs = [log for log in filtered_logs if log['level'] == log_level]
-    
-    if component != "Tous":
-        filtered_logs = [log for log in filtered_logs if log['component'] == component]
-    
-    # Afficher les logs
-    if filtered_logs:
-        st.markdown(f"**{len(filtered_logs)} entrées trouvées**")
-        
-        # Pagination
-        logs_per_page = 20
-        total_pages = (len(filtered_logs) - 1) // logs_per_page + 1
-        
-        if total_pages > 1:
-            page = st.selectbox("Page", range(1, total_pages + 1), index=0)
-            start_idx = (page - 1) * logs_per_page
-            end_idx = start_idx + logs_per_page
-            page_logs = filtered_logs[start_idx:end_idx]
-        else:
-            page_logs = filtered_logs
-        
-        # Afficher les logs de la page
-        for log in page_logs:
-            level_class = f"log-{log['level'].lower()}"
-            st.markdown(f"""
-            <div class="log-entry {level_class}">
-                <strong>{log['timestamp']}</strong> | 
-                <strong>{log['level']}</strong> | 
-                <strong>{log['component']}</strong> | 
-                {log['message']}
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("Aucun log trouvé avec les filtres sélectionnés")
     
     # Statistiques des logs - Vraies données
     st.header("📈 Statistiques des Logs")
@@ -397,11 +385,8 @@ def show_logs_page():
     
     except Exception as e:
         st.error(f"Erreur lors du calcul des statistiques: {e}")
-        # Fallback sur les logs d'exemple
-        level_counts = {}
-        for log in logs:
-            level = log['level']
-            level_counts[level] = level_counts.get(level, 0) + 1
+        # Fallback - pas de logs disponibles
+        level_counts = {'INFO': 0, 'SUCCESS': 0, 'WARNING': 0, 'ERROR': 0, 'DEBUG': 0}
         
         with col1:
             st.metric("INFO", level_counts.get('INFO', 0))
@@ -420,7 +405,7 @@ def show_logs_page():
     with col1:
         if st.button("💾 Exporter les Logs", key="export_logs"):
             # Créer un DataFrame des logs
-            df_logs = pd.DataFrame(logs)
+            df_logs = pd.DataFrame(recent_logs)
             csv = df_logs.to_csv(index=False)
             st.download_button(
                 label="📥 Télécharger CSV",
@@ -438,7 +423,7 @@ def show_logs_page():
     with col3:
         if st.button("📊 Graphique des Logs", key="chart_logs"):
             # Créer un graphique des logs par heure
-            df_logs = pd.DataFrame(logs)
+            df_logs = pd.DataFrame(recent_logs)
             df_logs['hour'] = pd.to_datetime(df_logs['timestamp'], format='%H:%M:%S').dt.hour
             
             hourly_counts = df_logs.groupby(['hour', 'level']).size().unstack(fill_value=0)
@@ -453,7 +438,7 @@ def show_logs_page():
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(f"**🕒 Dernière actualisation** : {datetime.now().strftime('%H:%M:%S')}")
-        st.markdown(f"**📊 Total des logs** : {len(logs)}")
+        st.markdown(f"**📊 Total des logs** : {len(recent_logs) if 'recent_logs' in locals() else 'N/A'}")
     with col2:
         st.markdown(f"**💾 Taille du fichier** : ~2.3 MB")
         st.markdown(f"**🔄 Rotation** : Quotidienne")
