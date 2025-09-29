@@ -546,45 +546,6 @@ def show_production_page():
     # Vérifier l'état des données 15min
     data_summary = services['data_monitor_service'].get_data_summary(ticker)
     
-    # Afficher le statut des données
-    col_status1, col_status2, col_status3 = st.columns([2, 1, 1])
-    
-    with col_status1:
-        status_color = data_summary.get('status_color', 'red')
-        status_text = data_summary.get('status_text', '❌ Données indisponibles')
-        st.markdown(f"""
-        <div style="background: {'#d4edda' if status_color == 'green' else '#fff3cd' if status_color == 'orange' else '#f8d7da'}; 
-                    padding: 0.5rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;">
-            <strong>{status_text}</strong>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_status2:
-        if data_summary.get('needs_update', False):
-            if st.button("🔄 Actualiser", type="secondary", key="refresh_15min"):
-                with st.spinner("Mise à jour des données 15min..."):
-                    success = services['data_monitor_service'].trigger_data_refresh(ticker)
-                    if success:
-                        # Vider tous les caches Streamlit pour forcer le rechargement
-                        st.cache_data.clear()
-                        st.cache_resource.clear()
-                        st.success("✅ Données mises à jour")
-                        st.rerun()
-                    else:
-                        st.error("❌ Échec de la mise à jour")
-    
-    with col_status3:
-        if data_summary.get('available', False):
-            last_update = data_summary.get('last_update', datetime.now())
-            if isinstance(last_update, str):
-                last_update = datetime.now()
-            st.markdown(f"""
-            <div style="text-align: center; font-size: 0.9rem; color: #666;">
-                Dernière MAJ:<br>
-                <strong>{last_update.strftime('%H:%M')}</strong>
-            </div>
-            """, unsafe_allow_html=True)
-    
     # Afficher le graphique si les données sont disponibles
     if data_summary.get('available', False):
         try:
