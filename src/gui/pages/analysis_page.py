@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from gui.services.data_service import DataService
 from gui.services.chart_service import ChartService
 from gui.services.prediction_service import PredictionService
+from gui.constants import normalize_columns
 
 def show_analysis_page():
     """Affiche la page d'analyse"""
@@ -48,50 +49,58 @@ def show_analysis_page():
     
     # Pas de header ici car il est déjà dans main.py
     
-    # Initialisation des services
-    @st.cache_resource
+    # Initialisation des services SANS cache pour la réactivité
     def init_services():
-        """Initialise les services avec cache"""
+        """Initialise les services sans cache pour la réactivité"""
         return {
             'data_service': DataService(),
             'chart_service': ChartService(),
             'prediction_service': PredictionService()
         }
     
-    # Chargement des données avec cache
-    @st.cache_data
+    # Chargement des données SANS cache pour permettre le filtrage réactif
     def load_ticker_data(ticker: str):
-        """Charge les données d'un ticker avec cache"""
+        """Charge les données d'un ticker sans cache pour réactivité"""
         services = init_services()
         
-        # Essayer d'abord les données 15min récentes
-        try:
-            from gui.services.data_monitor_service import DataMonitorService
-            data_monitor = DataMonitorService()
-            data_15min, metadata = data_monitor.get_latest_15min_data(ticker)
-            
-            if not data_15min.empty and metadata.get('status') == 'ok':
-                # Convertir les données 15min au format attendu par data_service
-                data_15min = data_15min.rename(columns={
-                    'ts_utc': 'DATE',
-                    'open': 'Open',
-                    'high': 'High',
-                    'low': 'Low',
-                    'close': 'Close',
-                    'volume': 'Volume'
-                })
-                # Normaliser les colonnes en majuscules comme data_service
-                data_15min.columns = data_15min.columns.str.upper()
-                # Conversion des dates en UTC
-                data_15min['DATE'] = pd.to_datetime(data_15min['DATE'], utc=True)
-                # Tri par date
-                data_15min = data_15min.sort_values('DATE').reset_index(drop=True)
-                return data_15min
-        except Exception as e:
-            st.warning(f"⚠️ Impossible de charger les données 15min: {e}")
+        # Pour l'analyse, utiliser TOUJOURS les données historiques qui ont plus de données
+        # Les données 15min sont limitées à quelques jours seulement
+        historical_data = services['data_service'].load_data(ticker)
         
-        # Fallback sur les données historiques
-        return services['data_service'].load_data(ticker)
+        # Normaliser les colonnes en minuscules
+        if not historical_data.empty:
+            historical_data = normalize_columns(historical_data)
+            # Conversion des dates
+            historical_data['date'] = pd.to_datetime(historical_data['date'], utc=True)
+            # Tri par date
+            historical_data = historical_data.sort_values('date').reset_index(drop=True)
+        
+        return historical_data
+    
+    # Fonction pour filtrer les données par période (sans cache pour réactivité)
+    def filter_data_by_period(data: pd.DataFrame, period: str) -> pd.DataFrame:
+        """Filtre les données par période de manière réactive"""
+        if data.empty:
+            return data
+        
+        # Utiliser la DERNIÈRE DATE DISPONIBLE dans les données comme référence
+        # Pas la date actuelle qui peut être après les données disponibles
+        last_date = data['date'].max()
+        
+        if period == "7 derniers jours":
+            start_date = last_date - pd.Timedelta(days=7)
+        elif period == "1 mois":
+            start_date = last_date - pd.Timedelta(days=30)
+        elif period == "1 an":
+            start_date = last_date - pd.Timedelta(days=365)
+        else:  # Total
+            return data
+        
+        # Filtrer les données
+        if 'date' in data.columns:
+            return data[data['date'] >= start_date].copy()
+        else:
+            return data
     
     # Initialisation des services
     services = init_services()
@@ -122,14 +131,8 @@ def show_analysis_page():
         # Sélection de la période
         periods = [
             "7 derniers jours",
-            "1 mois", 
-            "3 mois",
-            "6 derniers mois",
-            "1 an",
-            "3 ans",
-            "5 ans",
-            "10 ans",
-            "Total (toutes les données)"
+            "1 mois",
+            "1 an"
         ]
         
         period = st.selectbox(
@@ -192,13 +195,17 @@ def show_analysis_page():
         if df.empty:
             st.error(f"❌ Aucune donnée disponible pour {ticker}")
             return
-        
-        # Filtrage par période
-        filtered_df = data_service.filter_by_period(df, period)
+    
+    # Filtrage par période - Utilisation de la fonction réactive
+    with st.spinner(f"Filtrage des données pour {period}..."):
+        filtered_df = filter_data_by_period(df, period)
         
         if filtered_df.empty:
             st.error(f"❌ Aucune donnée pour la période {period}")
             return
+    
+    # Indicateur de mise à jour avec debug
+    st.success(f"✅ Données historiques chargées : {len(filtered_df)} points pour {period}")
     
     # Affichage des métriques principales
     col1, col2, col3, col4 = st.columns(4)
@@ -206,19 +213,19 @@ def show_analysis_page():
     with col1:
         st.metric(
             "Prix actuel",
-            f"${filtered_df['CLOSE'].iloc[-1]:.2f}",
-            f"{((filtered_df['CLOSE'].iloc[-1] / filtered_df['CLOSE'].iloc[0]) - 1) * 100:+.2f}%"
+            f"${filtered_df['close'].iloc[-1]:.2f}",
+            f"{((filtered_df['close'].iloc[-1] / filtered_df['close'].iloc[0]) - 1) * 100:+.2f}%"
         )
     
     with col2:
         st.metric(
             "Volume moyen",
-            f"{filtered_df['VOLUME'].mean():,.0f}",
-            f"{filtered_df['VOLUME'].iloc[-1]:,.0f}"
+            f"{filtered_df['volume'].mean():,.0f}",
+            f"{filtered_df['volume'].iloc[-1]:,.0f}"
         )
     
     with col3:
-        volatility = (filtered_df['CLOSE'].std() / filtered_df['CLOSE'].mean()) * 100
+        volatility = (filtered_df['close'].std() / filtered_df['close'].mean()) * 100
         st.metric(
             "Volatilité",
             f"{volatility:.2f}%",
@@ -235,18 +242,21 @@ def show_analysis_page():
     # Création du graphique selon le type d'analyse
     st.header(f"📊 {analysis_type} - {ticker}")
     
+    # Utiliser la période comme clé pour forcer la mise à jour
+    chart_key = f"{ticker}_{analysis_type}_{period}_{len(filtered_df)}"
+    
     if analysis_type == "Prix":
         # Graphique de prix avec moyennes mobiles
         chart = chart_service.create_price_chart(filtered_df, ticker, period)
-        st.plotly_chart(chart, use_container_width=True)
+        st.plotly_chart(chart, use_container_width=True, key=f"price_chart_{chart_key}")
         
         # Métriques de prix
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("#### 📈 Métriques de prix")
-            current_price = filtered_df['CLOSE'].iloc[-1]
-            ma_20 = filtered_df['CLOSE'].rolling(20, min_periods=1).mean().iloc[-1]
-            ma_50 = filtered_df['CLOSE'].rolling(50, min_periods=1).mean().iloc[-1] if len(filtered_df) >= 50 else None
+            current_price = filtered_df['close'].iloc[-1]
+            ma_20 = filtered_df['close'].rolling(20, min_periods=1).mean().iloc[-1]
+            ma_50 = filtered_df['close'].rolling(50, min_periods=1).mean().iloc[-1] if len(filtered_df) >= 50 else None
             
             st.markdown(f"**💰 Prix actuel** : ${current_price:.2f}")
             st.markdown(f"**📈 MA 20** : ${ma_20:.2f}")
@@ -263,14 +273,14 @@ def show_analysis_page():
     elif analysis_type == "Volume":
         # Graphique de volume avec volatilité
         chart = chart_service.create_volume_chart(filtered_df, ticker, period)
-        st.plotly_chart(chart, use_container_width=True)
+        st.plotly_chart(chart, use_container_width=True, key=f"volume_chart_{chart_key}")
         
         # Métriques de volume
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("#### 📊 Métriques de volume")
-            avg_volume = filtered_df['VOLUME'].mean()
-            current_volume = filtered_df['VOLUME'].iloc[-1]
+            avg_volume = filtered_df['volume'].mean()
+            current_volume = filtered_df['volume'].iloc[-1]
             
             st.markdown(f"**📊 Volume moyen** : {avg_volume:,.0f}")
             st.markdown(f"**📈 Volume actuel** : {current_volume:,.0f}")
@@ -287,10 +297,10 @@ def show_analysis_page():
     elif analysis_type == "Sentiment":
         # Graphique de sentiment
         chart = chart_service.create_sentiment_chart(filtered_df, ticker, period)
-        st.plotly_chart(chart, use_container_width=True)
+        st.plotly_chart(chart, use_container_width=True, key=f"sentiment_chart_{chart_key}")
         
         # Calcul du sentiment
-        log_returns = np.log(filtered_df['CLOSE'] / filtered_df['CLOSE'].shift(1)).fillna(0)
+        log_returns = np.log(filtered_df['close'] / filtered_df['close'].shift(1)).fillna(0)
         window = min(20, len(filtered_df))
         z_score = (log_returns - log_returns.rolling(window, min_periods=1).mean()) / log_returns.rolling(window, min_periods=1).std()
         sentiment = np.tanh(2.0 * z_score.fillna(0)) * 100
@@ -318,13 +328,13 @@ def show_analysis_page():
             with st.spinner("Génération des prédictions LSTM..."):
                 prediction_data = prediction_service.predict(filtered_df, horizon=20)
                 chart = chart_service.create_prediction_chart(filtered_df, prediction_data, ticker, period)
-                st.plotly_chart(chart, use_container_width=True)
+                st.plotly_chart(chart, use_container_width=True, key=f"prediction_chart_{chart_key}")
             
             # Métriques de prédiction
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("#### 🔮 Métriques de prédiction")
-                current_price = filtered_df['CLOSE'].iloc[-1]
+                current_price = filtered_df['close'].iloc[-1]
                 if prediction_data.get('predictions'):
                     future_price = prediction_data['predictions'][-1]
                     change_pct = ((future_price / current_price) - 1) * 100
@@ -361,8 +371,8 @@ def show_analysis_page():
         st.markdown(f"**📅 Période** : {period}")
         st.markdown(f"**📊 Points de données** : {len(filtered_df)}")
     with col2:
-        st.markdown(f"**📈 Date de début** : {filtered_df['DATE'].min().strftime('%Y-%m-%d')}")
-        st.markdown(f"**📉 Date de fin** : {filtered_df['DATE'].max().strftime('%Y-%m-%d')}")
+        st.markdown(f"**📈 Date de début** : {filtered_df['date'].min().strftime('%Y-%m-%d')}")
+        st.markdown(f"**📉 Date de fin** : {filtered_df['date'].max().strftime('%Y-%m-%d')}")
     with col3:
-        st.markdown(f"**💰 Prix min** : ${filtered_df['CLOSE'].min():.2f}")
-        st.markdown(f"**💰 Prix max** : ${filtered_df['CLOSE'].max():.2f}")
+        st.markdown(f"**💰 Prix min** : ${filtered_df['close'].min():.2f}")
+        st.markdown(f"**💰 Prix max** : ${filtered_df['close'].max():.2f}")

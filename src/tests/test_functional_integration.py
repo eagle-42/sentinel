@@ -345,8 +345,8 @@ class TestFunctionalIntegration:
         # Vérifier que les constantes sont cohérentes
         assert len(CONSTANTS.TOP_FEATURES) >= CONSTANTS.LSTM_TOP_FEATURES
         assert CONSTANTS.BASE_PRICE_WEIGHT + CONSTANTS.BASE_SENTIMENT_WEIGHT == 1.0
-        assert CONSTANTS.BUY_THRESHOLD > 0
-        assert CONSTANTS.SELL_THRESHOLD < 0
+        assert CONSTANTS.BASE_BUY_THRESHOLD > 0
+        assert CONSTANTS.BASE_SELL_THRESHOLD < 0
         assert CONSTANTS.LSTM_SEQUENCE_LENGTH > 0
         
         # Vérifier que les chemins existent
@@ -358,8 +358,8 @@ class TestFunctionalIntegration:
         assert len(feature_columns) == CONSTANTS.LSTM_TOP_FEATURES
         
         trading_config = CONSTANTS.get_trading_config()
-        assert "buy_threshold" in trading_config
-        assert "sell_threshold" in trading_config
+        assert "base_buy_threshold" in trading_config
+        assert "base_sell_threshold" in trading_config
         
         lstm_config = CONSTANTS.get_lstm_config()
         assert "sequence_length" in lstm_config

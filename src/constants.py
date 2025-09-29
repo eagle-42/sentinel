@@ -74,12 +74,33 @@ class SentinelConstants:
     ]
     
     # =============================================================================
-    # SEUILS DE TRADING
+    # SEUILS DE TRADING ADAPTATIFS
     # =============================================================================
-    BUY_THRESHOLD: float = 0.3      # Seuil d'achat
-    SELL_THRESHOLD: float = -0.3    # Seuil de vente
-    HOLD_CONFIDENCE: float = 0.3    # Confiance pour HOLD
-    SUCCESS_THRESHOLD: float = 0.02 # 2% - seuil de réussite des prédictions
+    # Seuils de base (volatilité normale)
+    BASE_BUY_THRESHOLD: float = 0.1      # Seuil d'achat de base
+    BASE_SELL_THRESHOLD: float = -0.1    # Seuil de vente de base
+    HOLD_CONFIDENCE: float = 0.3         # Confiance pour HOLD
+    SUCCESS_THRESHOLD: float = 0.02      # 2% - seuil de réussite des prédictions
+    
+    # Seuils adaptatifs selon la volatilité
+    LOW_VOLATILITY_THRESHOLDS: Dict[str, float] = {
+        "buy": 0.05,      # Faible volatilité = seuils bas
+        "sell": -0.05
+    }
+    NORMAL_VOLATILITY_THRESHOLDS: Dict[str, float] = {
+        "buy": 0.1,       # Volatilité normale = seuils équilibrés
+        "sell": -0.1
+    }
+    HIGH_VOLATILITY_THRESHOLDS: Dict[str, float] = {
+        "buy": 0.2,       # Haute volatilité = seuils élevés
+        "sell": -0.2
+    }
+    
+    # Seuils de détection de volatilité
+    VOLATILITY_LOW_THRESHOLD: float = 0.15    # < 15% = faible volatilité
+    VOLATILITY_HIGH_THRESHOLD: float = 0.25   # > 25% = haute volatilité
+    VOLUME_RATIO_LOW: float = 0.8             # Volume faible
+    VOLUME_RATIO_HIGH: float = 1.5            # Volume élevé
     
     # =============================================================================
     # CHEMINS DE DONNÉES - STRUCTURE UNIFIÉE
@@ -214,11 +235,28 @@ class SentinelConstants:
     def get_trading_config(cls) -> Dict[str, Any]:
         """Retourne la configuration de trading"""
         return {
-            "buy_threshold": cls.BUY_THRESHOLD,
-            "sell_threshold": cls.SELL_THRESHOLD,
+            "base_buy_threshold": cls.BASE_BUY_THRESHOLD,
+            "base_sell_threshold": cls.BASE_SELL_THRESHOLD,
             "hold_confidence": cls.HOLD_CONFIDENCE,
-            "success_threshold": cls.SUCCESS_THRESHOLD
+            "success_threshold": cls.SUCCESS_THRESHOLD,
+            "low_volatility_thresholds": cls.LOW_VOLATILITY_THRESHOLDS,
+            "normal_volatility_thresholds": cls.NORMAL_VOLATILITY_THRESHOLDS,
+            "high_volatility_thresholds": cls.HIGH_VOLATILITY_THRESHOLDS,
+            "volatility_low_threshold": cls.VOLATILITY_LOW_THRESHOLD,
+            "volatility_high_threshold": cls.VOLATILITY_HIGH_THRESHOLD,
+            "volume_ratio_low": cls.VOLUME_RATIO_LOW,
+            "volume_ratio_high": cls.VOLUME_RATIO_HIGH
         }
+    
+    @classmethod
+    def get_adaptive_thresholds(cls, volatility: float, volume_ratio: float) -> Dict[str, float]:
+        """Calcule les seuils adaptatifs selon la volatilité et le volume"""
+        if volatility < cls.VOLATILITY_LOW_THRESHOLD and volume_ratio < cls.VOLUME_RATIO_LOW:
+            return cls.LOW_VOLATILITY_THRESHOLDS.copy()
+        elif volatility > cls.VOLATILITY_HIGH_THRESHOLD and volume_ratio > cls.VOLUME_RATIO_HIGH:
+            return cls.HIGH_VOLATILITY_THRESHOLDS.copy()
+        else:
+            return cls.NORMAL_VOLATILITY_THRESHOLDS.copy()
     
     @classmethod
     def get_lstm_config(cls) -> Dict[str, Any]:

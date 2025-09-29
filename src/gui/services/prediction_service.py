@@ -13,6 +13,9 @@ import sys
 # Ajouter le répertoire src au path pour importer les modules core
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Importer les constantes de normalisation
+from gui.constants import normalize_columns
+
 try:
     from core.prediction import LSTMPredictor
     LSTM_AVAILABLE = True
@@ -79,8 +82,11 @@ class PredictionService:
     def _real_predict(self, df: pd.DataFrame, horizon: int) -> Dict[str, Any]:
         """Prédiction avec le vrai modèle LSTM"""
         try:
+            # Normaliser les colonnes en minuscules
+            df_normalized = normalize_columns(df)
+            
             # Prédictions historiques
-            historical_predictions = self.predictor.predict(df, horizon=1)
+            historical_predictions = self.predictor.predict(df_normalized, horizon=1)
             
             if 'error' in historical_predictions:
                 logger.warning(f"⚠️ Erreur prédiction historique: {historical_predictions['error']}")
@@ -129,9 +135,12 @@ class PredictionService:
             if df.empty:
                 return self._create_empty_prediction()
             
-            df_sorted = df.sort_values('DATE').reset_index(drop=True)
-            dates = df_sorted['DATE'].tolist()
-            prices = df_sorted['CLOSE'].tolist()
+            # Normaliser les colonnes en minuscules
+            df_normalized = normalize_columns(df)
+            
+            df_sorted = df_normalized.sort_values('date').reset_index(drop=True)
+            dates = df_sorted['date'].tolist()
+            prices = df_sorted['close'].tolist()
             
             # Prédictions historiques (simulation basée sur les prix réels)
             historical_predictions = []
@@ -176,12 +185,24 @@ class PredictionService:
                 avg_return = np.mean(recent_returns) if recent_returns else 0
                 volatility = np.std(recent_returns) if len(recent_returns) > 1 else 0.02
                 
-                # Générer les prédictions futures
+                # Assurer une volatilité minimale réaliste pour les prédictions
+                min_volatility = 0.015  # 1.5% de volatilité minimale
+                volatility = max(volatility, min_volatility)
+                
+                # Générer les prédictions futures avec une tendance cohérente et volatilité réaliste
                 current_price = last_price
+                
                 for i in range(1, horizon + 1):
-                    # Ajouter de la variabilité réaliste
-                    noise = np.random.normal(0, volatility * 0.1)
-                    predicted_return = avg_return + noise
+                    # Tendance basée sur la moyenne mobile récente
+                    if len(prices) >= 20:
+                        ma_20 = np.mean(prices[-20:])
+                        trend_factor = 1 + (ma_20 - last_price) / last_price * 0.1
+                    else:
+                        trend_factor = 1 + avg_return * 0.5
+                    
+                    # Ajouter de la variabilité réaliste avec plus de volatilité
+                    noise = np.random.normal(0, volatility * 0.3)  # Augmenter la volatilité
+                    predicted_return = avg_return * trend_factor + noise
                     predicted_price = current_price * (1 + predicted_return)
                     
                     future_predictions.append(predicted_price)

@@ -13,6 +13,7 @@ from pathlib import Path
 import sys
 import requests
 import time
+import json
 
 # Ajouter le répertoire src au path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -214,39 +215,62 @@ def show_production_page():
             help="Symbole de l'action à analyser. SPY: Prédictions disponibles. NVDA: Analyse uniquement."
         )
         
-        period = st.selectbox(
-            "Période",
-            ["7 derniers jours", "1 mois", "3 mois", "6 mois", "1 an"],
-            index=1,
-            help="Période d'analyse des données historiques."
-        )
+        # Période fixe à 7 jours pour l'analyse
+        period = "7 derniers jours"
+        
+        # Configuration des seuils adaptatifs
+        st.subheader("🎯 Seuils Adaptatifs")
+        
+        # Afficher les seuils actuels
+        fusion_stats = services['fusion_service'].get_fusion_stats()
+        current_thresholds = fusion_stats.get('current_thresholds', {'buy': 0.1, 'sell': -0.1})
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric(
+                "Seuil BUY",
+                f"{current_thresholds.get('buy', 0.1):.3f}",
+                help="Signal > seuil → ACHETER"
+            )
+        with col2:
+            st.metric(
+                "Seuil SELL", 
+                f"{current_thresholds.get('sell', -0.1):.3f}",
+                help="Signal < seuil → VENDRE"
+            )
+        
+        # Information sur l'adaptation
+        st.info("🔄 Les seuils s'adaptent automatiquement selon la volatilité du marché")
         
         # Actions du système
         st.subheader("🎮 Actions")
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("🚀 Démarrer Services", type="primary", key="start_services"):
+            if st.button("🚀 Démarrer Services", type="primary", key="start_services", help="Démarre tous les services de trading (crawler, prédiction, sentiment, fusion)"):
                 st.success("✅ Services démarrés")
                 st.session_state.services_running = True
         with col2:
-            if st.button("🛑 Arrêter Services", type="secondary", key="stop_services"):
+            if st.button("🛑 Arrêter Services", type="secondary", key="stop_services", help="Arrête tous les services de trading (simulation)"):
                 st.warning("⚠️ Services arrêtés")
                 st.session_state.services_running = False
         with col3:
-            if st.button("🔄 Rafraîchir", type="secondary", key="refresh_page"):
+            if st.button("🔄 Rafraîchir", type="secondary", key="refresh_page", help="Recharge la page et actualise tous les affichages"):
                 st.rerun()
         
         # Mise à jour des données
         st.subheader("📊 Données")
         
-        if st.button("📈 Mettre à jour les prix", type="secondary", key="update_prices"):
+        if st.button("📈 Mettre à jour les prix", type="secondary", key="update_prices", help="Met à jour les données de prix 15min depuis l'API et recharge les graphiques"):
             with st.spinner("Mise à jour des données de prix..."):
                 try:
                     # Utiliser le service de monitoring pour la mise à jour
                     success = services['data_monitor_service'].trigger_data_refresh(ticker)
                     
                     if success:
+                        # Vider tous les caches Streamlit pour forcer le rechargement
+                        st.cache_data.clear()
+                        st.cache_resource.clear()
                         st.success("✅ Données de prix mises à jour")
                         st.rerun()  # Recharger pour voir les nouvelles données
                     else:
@@ -255,6 +279,19 @@ def show_production_page():
                 except Exception as e:
                     st.error(f"❌ Erreur lors de la mise à jour: {e}")
                     st.info("ℹ️ Utilisation des données en cache")
+        
+        # Section d'aide
+        st.subheader("❓ Aide")
+        with st.expander("💡 Que font ces boutons ?", expanded=False):
+            st.markdown("""
+            **🎮 Actions :**
+            - **🚀 Démarrer Services** : Lance tous les services de trading (crawler, prédiction, sentiment, fusion)
+            - **🛑 Arrêter Services** : Arrête tous les services (simulation pour l'interface)
+            - **🔄 Rafraîchir** : Recharge la page et actualise tous les affichages
+            
+            **📊 Données :**
+            - **📈 Mettre à jour les prix** : Met à jour les données de prix 15min depuis l'API et recharge les graphiques
+            """)
     
     # 1. COMPTE RENDU D'ACTIVITÉ - Version restructurée en haut
     st.header("📊 Compte Rendu d'Activité")
@@ -366,8 +403,8 @@ def show_production_page():
             """, unsafe_allow_html=True)
     
     with col5:
-        # 5. Recommandation - Logique corrigée selon état du marché
-        if fusion_available and market_status["is_open"] and ticker == "SPY":
+        # 5. Recommandation - Afficher le dernier résultat ou statut approprié
+        if fusion_available and market_status["is_open"] and ticker == "SPY" and fusion_data:
             try:
                 st.markdown(f"""
                 <div class="kpi-box">
@@ -378,40 +415,95 @@ def show_production_page():
             except:
                 st.markdown(f"""
                 <div class="kpi-box">
-                    <div class="kpi-value" style="color: #dc3545;">N/A</div>
+                    <div class="kpi-value" style="color: #ffc107;">En cours</div>
                     <div class="kpi-label">Recommandation</div>
                 </div>
                 """, unsafe_allow_html=True)
         elif ticker == "NVDA":
             st.markdown(f"""
             <div class="kpi-box">
-                <div class="kpi-value" style="color: #ffc107;">N/A</div>
+                <div class="kpi-value" style="color: #ffc107;">Analyse</div>
                 <div class="kpi-label">Recommandation</div>
-                <div class="kpi-label" style="font-size: 0.8rem; color: #888;">NVDA: Pas de prédiction</div>
+                <div class="kpi-label" style="font-size: 0.8rem; color: #888;">NVDA: Analyse uniquement</div>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
             <div class="kpi-box">
-                <div class="kpi-value" style="color: #dc3545;">N/A</div>
+                <div class="kpi-value" style="color: #ffc107;">En attente</div>
                 <div class="kpi-label">Recommandation</div>
-                <div class="kpi-label" style="font-size: 0.8rem; color: #888;">Marché fermé</div>
+                <div class="kpi-label" style="font-size: 0.8rem; color: #888;">Ouverture marché</div>
             </div>
             """, unsafe_allow_html=True)
     
     with col6:
-        # 6. Box de vérification de la décision avec historique
-        if fusion_available and market_status["is_open"] and ticker == "SPY":
+        # 6. Seuils adaptatifs actuels
+        if fusion_available and fusion_data:
             try:
-                from gui.services.verification_service import VerificationService
-                verification_service = VerificationService()
-                
-                current_price = services['data_service'].load_data(ticker)['CLOSE'].iloc[-1]
-                verification_result = verification_service.verify_decision(
-                    ticker, current_price, fusion_data['recommendation'], fusion_data['score']
-                )
-                
+                current_thresholds = fusion_data.get('thresholds', {'buy': 0.1, 'sell': -0.1})
                 st.markdown(f"""
+                <div class="kpi-box">
+                    <div class="kpi-value" style="color: #17a2b8;">{current_thresholds.get('buy', 0.1):.3f}</div>
+                    <div class="kpi-label">{ticker} BUY</div>
+                    <div class="kpi-label" style="font-size: 0.8rem; color: #888;">Adaptatif</div>
+                </div>
+                """, unsafe_allow_html=True)
+            except:
+                st.markdown(f"""
+                <div class="kpi-box">
+                    <div class="kpi-value" style="color: #17a2b8;">0.100</div>
+                    <div class="kpi-label">{ticker} BUY</div>
+                    <div class="kpi-label" style="font-size: 0.8rem; color: #888;">Par défaut</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class="kpi-box">
+                <div class="kpi-value" style="color: #6c757d;">N/A</div>
+                <div class="kpi-label">{ticker} BUY</div>
+                <div class="kpi-label" style="font-size: 0.8rem; color: #888;">Non disponible</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    
+    # Box de vérification de la décision avec historique (déplacé)
+    if fusion_available and market_status["is_open"] and ticker == "SPY" and fusion_data is not None:
+        try:
+            from gui.services.verification_service import VerificationService
+            from gui.services.historical_validation_service import HistoricalValidationService
+            
+            verification_service = VerificationService()
+            historical_validation = HistoricalValidationService()
+            
+            current_price = services['data_service'].load_data(ticker)['CLOSE'].iloc[-1]
+            verification_result = verification_service.verify_decision(
+                ticker, current_price, fusion_data['recommendation'], fusion_data.get('fusion_score', 0.0)
+            )
+                
+            # Récupérer les statistiques de rentabilité historique
+            validation_summary = historical_validation.get_validation_summary(ticker, days=7)
+            summary_stats = validation_summary.get('summary_stats', {})
+            
+            # Calculer le score de rentabilité
+            profitability_score = summary_stats.get('accuracy_rate', 0.0) * 100
+            total_decisions = summary_stats.get('total_decisions', 0)
+            correct_decisions = summary_stats.get('correct_decisions', 0)
+            
+            # Déterminer la couleur du score
+            if profitability_score >= 80:
+                score_color = "#28a745"  # Vert
+                score_status = "Excellent"
+            elif profitability_score >= 60:
+                score_color = "#ffc107"  # Orange
+                score_status = "Bon"
+            elif profitability_score >= 40:
+                score_color = "#fd7e14"  # Orange foncé
+                score_status = "Moyen"
+            else:
+                score_color = "#dc3545"  # Rouge
+                score_status = "Faible"
+            
+            st.markdown(f"""
                 <div class="kpi-box">
                     <div class="kpi-value" style="color: {verification_result.get('color', '#6c757d')};">
                         {verification_result['status']}
@@ -421,27 +513,34 @@ def show_production_page():
                         {verification_result['message']}
                     </div>
                     {f'<div class="kpi-label" style="font-size: 0.6rem; color: #666; margin-top: 0.2rem;">Précédent: {verification_result.get("previous_recommendation", "N/A")}</div>' if verification_result.get('previous_recommendation') else ''}
-                </div>
-                """, unsafe_allow_html=True)
-            except Exception as e:
-                st.markdown(f"""
-                <div class="kpi-box">
-                    <div class="kpi-value" style="color: #dc3545;">Erreur</div>
-                    <div class="kpi-label">Vérification</div>
-                    <div class="kpi-label" style="font-size: 0.7rem; color: #888; margin-top: 0.3rem;">
-                        {str(e)[:50]}...
+                
+                <!-- Score de rentabilité historique -->
+                <div style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #eee;">
+                    <div class="kpi-value" style="color: {score_color}; font-size: 1.8rem;">
+                        {profitability_score:.1f}%
+                    </div>
+                    <div class="kpi-label" style="font-size: 0.7rem; color: #666;">
+                        Score de Rentabilité
+                    </div>
+                    <div class="kpi-label" style="font-size: 0.6rem; color: {score_color}; margin-top: 0.2rem;">
+                        {score_status} - {correct_decisions}/{total_decisions} décisions correctes
                     </div>
                 </div>
+                </div>
                 """, unsafe_allow_html=True)
-        else:
+        except Exception as e:
             st.markdown(f"""
             <div class="kpi-box">
-                <div class="kpi-value" style="color: #6c757d;">-</div>
+                <div class="kpi-value" style="color: #dc3545;">Erreur</div>
                 <div class="kpi-label">Vérification</div>
+                <div class="kpi-label" style="font-size: 0.7rem; color: #888; margin-top: 0.3rem;">
+                    {str(e)[:50]}...
+                </div>
             </div>
             """, unsafe_allow_html=True)
     
-    # 2. GRAPHIQUE 15MIN DU JOUR - Données réelles avec monitoring
+    
+    # 3. GRAPHIQUE 15MIN DU JOUR - Données réelles avec monitoring
     st.header("📈 Graphique 15min du Jour")
     
     # Vérifier l'état des données 15min
@@ -466,6 +565,9 @@ def show_production_page():
                 with st.spinner("Mise à jour des données 15min..."):
                     success = services['data_monitor_service'].trigger_data_refresh(ticker)
                     if success:
+                        # Vider tous les caches Streamlit pour forcer le rechargement
+                        st.cache_data.clear()
+                        st.cache_resource.clear()
                         st.success("✅ Données mises à jour")
                         st.rerun()
                     else:
@@ -491,9 +593,12 @@ def show_production_page():
             if not data_15min.empty:
                 # Filtrer les données des 7 derniers jours
                 seven_days_ago = datetime.now() - timedelta(days=7)
+                # Créer une copie pour éviter le warning SettingWithCopyWarning
+                data_15min_copy = data_15min.copy()
                 # Convertir les timestamps en datetime naif pour la comparaison
-                data_15min['ts_utc_naive'] = data_15min['ts_utc'].apply(lambda x: x.replace(tzinfo=None) if x.tzinfo is not None else x)
-                data_recent = data_15min[data_15min['ts_utc_naive'] >= seven_days_ago]
+                data_15min_copy = data_15min_copy.copy()
+                data_15min_copy['ts_utc_naive'] = data_15min_copy['ts_utc'].apply(lambda x: x.replace(tzinfo=None) if x.tzinfo is not None else x)
+                data_recent = data_15min_copy[data_15min_copy['ts_utc_naive'] >= seven_days_ago].copy()
                 
                 if not data_recent.empty:
                     # Créer le graphique 15min
@@ -552,118 +657,25 @@ def show_production_page():
     else:
         st.warning(f"Données 15min non disponibles: {data_summary.get('message', 'Erreur inconnue')}")
     
-    # 3. PARTIE LLM ET SENTIMENT - Séparées en deux colonnes
-    st.header("🤖 Services d'Analyse")
     
-    col1, col2 = st.columns(2)
+    # Layout en 3 colonnes : Analyse sentiment, Service LLM, Graphiques de performance
+    col1, col2, col3 = st.columns(3, gap="medium")
     
     with col1:
-        # Service LLM (Ollama)
-        st.subheader("🤖 Service LLM (Ollama)")
-        
-        # Vérifier l'état d'Ollama
-        ollama_online = False
-        try:
-            response = requests.get("http://localhost:11434/api/tags", timeout=5)
-            if response.status_code == 200:
-                models = response.json().get('models', [])
-                ollama_online = any(m.get('name') == 'phi3:mini' for m in models)
-        except:
-            ollama_online = False
-        
-        # Boutons LLM
-        col_llm1, col_llm2 = st.columns(2)
-        with col_llm1:
-            if st.button("🚀 Démarrer Phi-3", type="primary", key="start_phi3"):
-                try:
-                    response = requests.post("http://localhost:11434/api/generate", json={
-                        "model": "phi3:mini",
-                        "prompt": "Test de connexion - prêt pour la production?",
-                        "stream": False
-                    }, timeout=30)
-                    
-                    if response.status_code == 200:
-                        st.success("✅ Phi-3 Mini démarré et prêt !")
-                        st.session_state.llm_ready = True
-                    else:
-                        st.error(f"❌ Erreur API Ollama : {response.status_code}")
-                except requests.exceptions.ConnectionError:
-                    st.error("❌ Ollama non accessible. Vérifiez que le service est démarré.")
-                except Exception as e:
-                    st.error(f"Erreur Ollama : {e}")
-        
-        with col_llm2:
-            if st.button("🛑 Arrêter LLM", key="stop_llm"):
-                st.warning("⚠️ Service LLM arrêté (simulé).")
-                st.session_state.llm_ready = False
-        
-        # État du service
-        status_color = "#28a745" if ollama_online else "#dc3545"
-        status_text = "✅ En ligne" if ollama_online else "❌ Hors ligne"
-        st.markdown(f"""
-        <div style="background: white; padding: 0.5rem; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <p style="margin: 0; font-size: 0.9rem;"><strong>Statut :</strong> <span style="color: {status_color};">{status_text}</span></p>
-            <p style="margin: 0; font-size: 0.8rem; color: #666;">phi3:mini</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-        # Rapport LLM avec toggle
-        if ollama_online and fusion_available:
-            if st.button("📄 Générer Rapport avec Phi-3", type="secondary", key="generate_report"):
-                try:
-                    with st.spinner("Génération du rapport avec Phi-3..."):
-                        response = requests.post("http://localhost:11434/api/generate", json={
-                            "model": "phi3:mini",
-                            "prompt": f"""
-                            Analysez la situation de trading pour {ticker}:
-                            - Score de fusion: {fusion_data.get('fusion_score', 0):.2f}
-                            - Recommandation: {fusion_data.get('recommendation', 'N/A')}
-                            - Confiance: {fusion_data.get('confidence', 0):.1%}
-                            - Statut marché: {'Ouvert' if market_status['is_open'] else 'Fermé'}
-                            
-                            Fournissez une analyse détaillée et des recommandations.
-                            """,
-                            "stream": False
-                        }, timeout=60)
-                        
-                        if response.status_code == 200:
-                            result = response.json()
-                            rapport = result.get('response', 'Erreur de génération')
-                            
-                            st.markdown(f"""
-                            <div class="feature-card llm-card">
-                                <h4>📋 Rapport Phi-3</h4>
-                                <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; max-height: 300px; overflow-y: auto; border: 1px solid #e0e0e0;">
-                                    <p>{rapport}</p>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.error(f"Erreur API Phi-3: {response.status_code}")
-                except Exception as e:
-                    st.error(f"Erreur génération rapport: {e}")
-        else:
-            if not ollama_online:
-                st.info("ℹ️ LLM non disponible - Ollama hors ligne")
-            else:
-                st.info("ℹ️ Fusion non disponible - Impossible de générer le rapport")
-    
-    with col2:
         # Analyse de Sentiment
         st.subheader("💭 Analyse de Sentiment")
         
+        # Analyse de sentiment simple
         try:
             articles = services['sentiment_service'].get_news_articles(ticker, 10)
             
             if articles:
+                # Trier les articles par date (plus récent en premier)
+                articles = sorted(articles, key=lambda x: x['timestamp'], reverse=True)
+                
                 # Afficher le dernier article analysé
                 dernier_article = articles[0]
                 sentiment = services['sentiment_service'].analyze_article_sentiment(dernier_article)
-                
-                # Score avec justification
-                st.markdown(f"""
-                **Dernier sentiment :** {sentiment['label']} ({sentiment['sentiment_score']:.2f}) • {dernier_article['timestamp'].strftime('%H:%M')}
-                """)
                 
                 # Justification du sentiment
                 justification_elements = []
@@ -681,156 +693,194 @@ def show_production_page():
                 else:
                     justification_elements.append("📰 Volume d'articles faible")
                 
-                st.markdown(f"""
-                **Justification :** {' | '.join(justification_elements)}
-                """)
+                # Affichage simple
+                st.markdown(f"**Dernier sentiment :** {sentiment['label']} ({sentiment['sentiment_score']:.2f}) • {dernier_article['timestamp'].strftime('%H:%M')}")
+                st.markdown(f"**Justification :** {' | '.join(justification_elements)}")
                 
-                # Bouton pour afficher/masquer l'historique
-                if 'show_sentiment_history' not in st.session_state:
-                    st.session_state.show_sentiment_history = False
-                
-                if st.button("📜 Afficher/Masquer l'historique des articles", key="toggle_sentiment_history"):
-                    st.session_state.show_sentiment_history = not st.session_state.show_sentiment_history
-                
-                # Container avec scroll vertical pour l'historique
-                if st.session_state.show_sentiment_history:
-                    st.markdown("""
-                    <div style="max-height: 300px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem;">
-                    """, unsafe_allow_html=True)
-                    
-                    for i, article in enumerate(articles[1:], 1):
-                        try:
-                            sentiment = services['sentiment_service'].analyze_article_sentiment(article)
-                            
-                            st.markdown(f"""
-                            <div class="feature-card sentiment-card" style="margin-bottom: 1rem;">
-                                <h5>{article['title']}</h5>
-                                <p><small>{article['source']} • {article['timestamp'].strftime('%H:%M')}</small></p>
-                                <div style="display: flex; align-items: center; gap: 10px;">
-                                    <span style="font-size: 1.5rem;">{sentiment['emoji']}</span>
-                                    <span><strong>{sentiment['label']}</strong> ({sentiment['sentiment_score']:.2f})</span>
-                                    <div style="flex: 1; background: #e9ecef; height: 8px; border-radius: 4px;">
-                                        <div style="width: {(sentiment['sentiment_score'] + 1) * 50}%; background: {sentiment['color']}; height: 100%; border-radius: 4px;"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        except Exception as e:
-                            st.markdown(f"""
-                            <div class="feature-card sentiment-card" style="margin-bottom: 1rem; border-left-color: #dc3545;">
-                                <h5>{article['title']}</h5>
-                                <p><small>{article['source']} • {article['timestamp'].strftime('%H:%M')}</small></p>
-                                <p style="color: #dc3545;"><strong>❌ Erreur d'analyse</strong></p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
+                # Liste des articles
+                st.markdown("**📰 Liste des articles :**")
+                for i, article in enumerate(articles[:5], 1):  # Limiter à 5 articles
+                    try:
+                        article_sentiment = services['sentiment_service'].analyze_article_sentiment(article)
+                        with st.expander(f"Article {i}: {article['title'][:50]}...", expanded=False):
+                            st.write(f"**Source:** {article['source']} • {article['timestamp'].strftime('%H:%M')}")
+                            st.write(f"**Sentiment:** {article_sentiment['emoji']} {article_sentiment['label']} ({article_sentiment['sentiment_score']:.2f})")
+                    except Exception as e:
+                        with st.expander(f"Article {i}: {article['title'][:50]}...", expanded=False):
+                            st.error(f"❌ Erreur d'analyse: {str(e)}")
             else:
-                st.warning("Aucun article disponible")
+                st.info("Aucun article disponible")
                 
         except Exception as e:
             st.error(f"Erreur Analyse Sentiment: {str(e)}")
     
-    # 4. SERVICE LLM - Synthèses concises avec limitation de tokens
-    st.header("🧠 Service LLM - Synthèse de Trading")
-    
-    col_llm1, col_llm2 = st.columns([2, 1])
-    
-    with col_llm1:
+    with col2:
+        # Service LLM
+        st.subheader("🧠 Service LLM")
+        
+        # Service LLM simple
         try:
             llm_service = LLMService()
-            
-            # Vérifier le statut du service
             llm_status = llm_service.check_service_status()
             
+            # Affichage du statut
             if llm_status['online'] and llm_status['model_available']:
                 st.success(f"✅ {llm_status['status']}")
                 
-                # Boutons de contrôle
-                col_btn1, col_btn2, col_btn3 = st.columns(3)
-                
-                with col_btn1:
-                    if st.button("🔄 Générer Synthèse", key="generate_synthesis"):
-                        if fusion_available and market_status["is_open"] and ticker == "SPY":
-                            with st.spinner("Génération de la synthèse..."):
-                                current_price = services['data_service'].load_data(ticker)['CLOSE'].iloc[-1]
-                                sentiment_score = services['sentiment_service'].get_sentiment_score(ticker)
-                                
-                                synthesis = llm_service.generate_trading_synthesis(
-                                    ticker, fusion_data['recommendation'], 
-                                    fusion_data['score'], current_price, sentiment_score
-                                )
-                                
-                                if synthesis['success']:
-                                    st.session_state['llm_synthesis'] = synthesis
-                                    llm_service.save_synthesis(ticker, synthesis)
-                                    st.success("✅ Synthèse générée et sauvegardée")
-                                else:
-                                    st.error(f"❌ Erreur: {synthesis['synthesis']}")
+                # Génération automatique de synthèse si fusion disponible
+                if fusion_available and market_status["is_open"] and ticker == "SPY" and fusion_data:
+                    try:
+                        current_price = services['data_service'].load_data(ticker)['CLOSE'].iloc[-1]
+                        sentiment_score = services['sentiment_service'].get_sentiment_score(ticker)
+                        
+                        synthesis = llm_service.generate_trading_synthesis(
+                            ticker, fusion_data['recommendation'], 
+                            fusion_data.get('fusion_score', 0.0), current_price, sentiment_score
+                        )
+                        
+                        if synthesis['success']:
+                            st.session_state['llm_synthesis'] = synthesis
+                            llm_service.save_synthesis(ticker, synthesis)
+                            
+                            with st.expander("📝 Analyse LLM Automatique", expanded=True):
+                                st.write(synthesis['synthesis'])
+                                st.caption(f"Modèle: {synthesis['model']} • {synthesis['timestamp'][:19]}")
                         else:
-                            st.warning("⚠️ Synthèse disponible uniquement pour SPY en marché ouvert")
+                            st.warning(f"⚠️ {synthesis['synthesis']}")
+                            
+                    except Exception as e:
+                        if "timeout" in str(e).lower():
+                            st.warning("⚠️ Service LLM occupé - Réessayez plus tard")
+                        else:
+                            st.warning(f"⚠️ Erreur génération: {str(e)[:50]}...")
+                else:
+                    st.info("ℹ️ Synthèse LLM disponible uniquement pour SPY en marché ouvert")
                 
-                with col_btn2:
-                    if st.button("📊 Statistiques", key="llm_stats"):
-                        st.session_state['show_llm_stats'] = not st.session_state.get('show_llm_stats', False)
-                
-                with col_btn3:
-                    if st.button("🗑️ Effacer", key="clear_synthesis"):
-                        if 'llm_synthesis' in st.session_state:
-                            del st.session_state['llm_synthesis']
-                        st.rerun()
-                
-                # Afficher la synthèse si disponible
-                if 'llm_synthesis' in st.session_state:
-                    synthesis = st.session_state['llm_synthesis']
-                    st.markdown(f"""
-                    <div class="feature-card" style="margin-top: 1rem;">
-                        <h5>📝 Synthèse LLM ({synthesis['model']})</h5>
-                        <p style="font-size: 0.9rem; line-height: 1.4;">{synthesis['synthesis']}</p>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #666; margin-top: 0.5rem;">
-                            <span>Tokens: {synthesis['tokens_used']}</span>
-                            <span>{synthesis['timestamp'][:19]}</span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Afficher les statistiques si demandées
-                if st.session_state.get('show_llm_stats', False):
-                    st.markdown("**📊 Statistiques LLM:**")
-                    st.json({
-                        "Modèle": llm_status['model'],
-                        "Statut": llm_status['status'],
-                        "Modèles disponibles": llm_status['models'][:3]  # Limiter l'affichage
-                    })
+                # Afficher l'historique des synthèses
+                try:
+                    from constants import CONSTANTS
+                    synthesis_path = CONSTANTS.get_data_path() / "trading" / "llm_synthesis"
+                    synthesis_files = list(synthesis_path.glob(f"{ticker}_synthesis_*.json"))
+                    
+                    if synthesis_files:
+                        # Prendre le fichier le plus récent
+                        latest_file = max(synthesis_files, key=lambda x: x.stat().st_mtime)
+                        
+                        with open(latest_file, 'r') as f:
+                            syntheses = json.load(f)
+                        
+                        if syntheses:
+                            st.markdown("**📚 Historique des Synthèses:**")
+                            for i, synthesis in enumerate(syntheses[-3:], 1):
+                                with st.expander(f"Synthèse #{len(syntheses) - 3 + i}", expanded=False):
+                                    st.write(synthesis['synthesis'])
+                                    st.caption(f"{synthesis['timestamp'][:19]} • {synthesis['tokens_used']} mots")
+                        else:
+                            st.info("Aucune synthèse disponible dans l'historique")
+                    else:
+                        st.info("Aucun historique de synthèses trouvé")
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Erreur chargement historique: {str(e)}")
             
             else:
                 st.error(f"❌ {llm_status['status']}")
                 st.info("💡 Pour activer le service LLM: `ollama pull phi3:mini`")
+            
+            # Statistiques de vérification - Utiliser les données de fusion
+            try:
+                if fusion_available and fusion_data:
+                    # Utiliser les données de fusion pour les statistiques
+                    confidence = fusion_data.get('confidence', 0.0)
+                    fusion_score = fusion_data.get('fusion_score', 0.0)
+                    recommendation = fusion_data.get('recommendation', 'HOLD')
+                    
+                    st.markdown("**📈 Précision des Décisions (7j)**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Confiance", f"{confidence:.1%}")
+                    with col2:
+                        st.metric("Score Fusion", f"{fusion_score:.3f}")
+                    with col3:
+                        st.metric("Recommandation", recommendation)
+                else:
+                    st.markdown("**📈 Précision des Décisions (7j)**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Décisions", "0")
+                    with col2:
+                        st.metric("Précision", "0.0%")
+                    with col3:
+                        st.metric("Cohérentes", "0")
+                    
+            except Exception as e:
+                st.warning(f"⚠️ Statistiques indisponibles: {str(e)}")
         
         except Exception as e:
             st.error(f"❌ Erreur Service LLM: {str(e)}")
     
-    with col_llm2:
-        # Statistiques de vérification
+    with col3:
+        # Graphiques de Performance
+        st.subheader("📊 Graphiques de Performance")
+        
         try:
-            from gui.services.verification_service import VerificationService
-            verification_service = VerificationService()
+            # Récupérer les données de validation historique
+            from gui.services.historical_validation_service import HistoricalValidationService
+            historical_validation = HistoricalValidationService()
+            validation_summary = historical_validation.get_validation_summary(ticker, days=7)
+            summary_stats = validation_summary.get('summary_stats', {})
             
-            stats = verification_service.get_accuracy_stats(ticker, 7)
-            
-            st.markdown(f"""
-            <div class="feature-card">
-                <h6>📈 Précision (7j)</h6>
-                <div style="font-size: 0.9rem;">
-                    <div>Décisions: {stats['total_decisions']}</div>
-                    <div>Précision: {stats['accuracy_rate']:.1%}</div>
-                    <div>Cohérentes: {stats['coherent_decisions']}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
+            if summary_stats.get('total_decisions', 0) > 0:
+                # Graphique de répartition des décisions
+                import plotly.express as px
+                
+                decision_types = ['BUY', 'SELL', 'HOLD']
+                decision_counts = [
+                    summary_stats.get('buy_decisions', 0),
+                    summary_stats.get('sell_decisions', 0),
+                    summary_stats.get('hold_decisions', 0)
+                ]
+                
+                fig = px.bar(
+                    x=decision_types,
+                    y=decision_counts,
+                    title="Répartition des Décisions",
+                    color=decision_types,
+                    color_discrete_map={'BUY': '#28a745', 'SELL': '#dc3545', 'HOLD': '#ffc107'}
+                )
+                fig.update_layout(showlegend=False, height=300)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Graphique de précision par type
+                if summary_stats.get('buy_decisions', 0) > 0 or summary_stats.get('sell_decisions', 0) > 0:
+                    accuracy_data = []
+                    if summary_stats.get('buy_decisions', 0) > 0:
+                        accuracy_data.append({'Type': 'BUY', 'Précision': summary_stats.get('buy_accuracy', 0.0) * 100})
+                    if summary_stats.get('sell_decisions', 0) > 0:
+                        accuracy_data.append({'Type': 'SELL', 'Précision': summary_stats.get('sell_accuracy', 0.0) * 100})
+                    
+                    if accuracy_data:
+                        df_accuracy = pd.DataFrame(accuracy_data)
+                        fig2 = px.bar(
+                            df_accuracy,
+                            x='Type',
+                            y='Précision',
+                            title="Précision par Type",
+                            color='Type',
+                            color_discrete_map={'BUY': '#28a745', 'SELL': '#dc3545'}
+                        )
+                        fig2.update_layout(showlegend=False, height=300)
+                        fig2.update_yaxis(title="Précision (%)")
+                        st.plotly_chart(fig2, use_container_width=True)
+                    else:
+                        st.info("Aucune décision BUY/SELL pour afficher la précision")
+                else:
+                    st.info("Aucune décision BUY/SELL pour afficher la précision")
+            else:
+                st.info("Aucune donnée de performance disponible")
+                
         except Exception as e:
-            st.warning(f"⚠️ Statistiques indisponibles: {str(e)}")
+            st.warning(f"⚠️ Erreur chargement graphiques: {str(e)}")
     
     
     # 5. ÉTATS DES SERVICES - Déplacé en fin de page et corrigé

@@ -94,8 +94,8 @@ class TestSentinelConfig:
         assert trading_config["price_interval"] == CONSTANTS.PRICE_INTERVAL
         assert trading_config["price_period"] == CONSTANTS.PRICE_PERIOD
         assert trading_config["fusion_mode"] == "adaptive"  # Valeur du .env corrigée
-        assert trading_config["buy_threshold"] == CONSTANTS.BUY_THRESHOLD
-        assert trading_config["sell_threshold"] == CONSTANTS.SELL_THRESHOLD
+        assert trading_config["buy_threshold"] == CONSTANTS.BASE_BUY_THRESHOLD
+        assert trading_config["sell_threshold"] == CONSTANTS.BASE_SELL_THRESHOLD
         assert trading_config["hold_confidence"] == CONSTANTS.HOLD_CONFIDENCE
     
     def test_get_lstm_config(self):

@@ -53,8 +53,8 @@ class TestSentinelConstants:
     
     def test_trading_thresholds(self):
         """Test les seuils de trading"""
-        assert CONSTANTS.BUY_THRESHOLD > 0
-        assert CONSTANTS.SELL_THRESHOLD < 0
+        assert CONSTANTS.BASE_BUY_THRESHOLD > 0
+        assert CONSTANTS.BASE_SELL_THRESHOLD < 0
         assert 0 <= CONSTANTS.HOLD_CONFIDENCE <= 1
         assert CONSTANTS.SUCCESS_THRESHOLD > 0
     
@@ -164,13 +164,13 @@ class TestSentinelConstants:
     def test_get_trading_config(self):
         """Test la méthode get_trading_config"""
         config = CONSTANTS.get_trading_config()
-        assert "buy_threshold" in config
-        assert "sell_threshold" in config
+        assert "base_buy_threshold" in config
+        assert "base_sell_threshold" in config
         assert "hold_confidence" in config
         assert "success_threshold" in config
         
-        assert config["buy_threshold"] == CONSTANTS.BUY_THRESHOLD
-        assert config["sell_threshold"] == CONSTANTS.SELL_THRESHOLD
+        assert config["base_buy_threshold"] == CONSTANTS.BASE_BUY_THRESHOLD
+        assert config["base_sell_threshold"] == CONSTANTS.BASE_SELL_THRESHOLD
         assert config["hold_confidence"] == CONSTANTS.HOLD_CONFIDENCE
         assert config["success_threshold"] == CONSTANTS.SUCCESS_THRESHOLD
     
@@ -215,7 +215,7 @@ class TestSentinelConstants:
         assert abs(total_weight - 1.0) < 1e-6
         
         # Vérifier que les seuils de trading sont cohérents
-        assert CONSTANTS.BUY_THRESHOLD > CONSTANTS.SELL_THRESHOLD
+        assert CONSTANTS.BASE_BUY_THRESHOLD > CONSTANTS.BASE_SELL_THRESHOLD
         
         # Vérifier que les features sont cohérentes
         assert len(CONSTANTS.TOP_FEATURES) >= CONSTANTS.LSTM_TOP_FEATURES

@@ -49,6 +49,12 @@ class VerificationService:
                 if decision.get('ticker') == ticker:
                     return decision
             
+            # Si pas de 'decisions' key, chercher directement dans la liste
+            if isinstance(decisions, list):
+                for decision in decisions:
+                    if decision.get('ticker') == ticker:
+                        return decision
+            
             return None
             
         except Exception as e:
@@ -79,8 +85,8 @@ class VerificationService:
             else:
                 price_change = 0
             
-            # Vérifier la cohérence
-            prev_recommendation = prev_decision.get('recommendation', '')
+            # Vérifier la cohérence - Compatibilité avec les deux formats
+            prev_recommendation = prev_decision.get('recommendation', prev_decision.get('decision', ''))
             accuracy = self._calculate_accuracy(prev_recommendation, price_change)
             
             # Déterminer le statut

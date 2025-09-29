@@ -1,0 +1,365 @@
+"""
+Service de validation historique des décisions de trading
+Valide les décisions passées contre l'évolution réelle des prix
+"""
+
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Any
+from loguru import logger
+import sys
+import json
+
+# Ajouter le chemin src pour les imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from constants import CONSTANTS
+
+class HistoricalValidationService:
+    """Service de validation historique des décisions de trading"""
+    
+    def __init__(self):
+        self.data_path = CONSTANTS.get_data_path()
+        self.decisions_path = self.data_path / "trading" / "decisions_log"
+        self.validation_path = self.data_path / "trading" / "historical_validation"
+        self.validation_path.mkdir(parents=True, exist_ok=True)
+        
+        # Fichier parquet pour l'historique des validations
+        self.validation_file = self.validation_file = self.validation_path / "historical_validation_results.parquet"
+        
+        logger.info("🔍 Service de validation historique initialisé")
+    
+    def load_historical_decisions(self) -> pd.DataFrame:
+        """Charge les décisions historiques depuis le fichier JSON"""
+        try:
+            decisions_file = self.decisions_path / "trading_decisions.json"
+            
+            if not decisions_file.exists():
+                logger.warning("Fichier de décisions non trouvé")
+                return pd.DataFrame()
+            
+            with open(decisions_file, 'r') as f:
+                decisions = json.load(f)
+            
+            # Convertir en DataFrame
+            if isinstance(decisions, list):
+                df = pd.DataFrame(decisions)
+            elif isinstance(decisions, dict) and 'decisions' in decisions:
+                df = pd.DataFrame(decisions['decisions'])
+            else:
+                logger.warning("Format de décisions non reconnu")
+                return pd.DataFrame()
+            
+            # Convertir les timestamps
+            if 'timestamp' in df.columns:
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur chargement décisions: {e}")
+            return pd.DataFrame()
+    
+    def load_historical_prices(self, ticker: str) -> pd.DataFrame:
+        """Charge les données de prix historiques"""
+        try:
+            # Essayer d'abord les données 15min
+            price_file = self.data_path / "realtime" / "prices" / f"{ticker.lower()}_15min.parquet"
+            
+            if price_file.exists():
+                df = pd.read_parquet(price_file)
+                if 'ts_utc' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['ts_utc'])
+                elif 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp'])
+                return df
+            
+            # Fallback sur les données historiques
+            hist_file = self.data_path / "historical" / "yfinance" / f"{ticker}_1999_2025.parquet"
+            if hist_file.exists():
+                df = pd.read_parquet(hist_file)
+                if 'date' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['date'])
+                return df
+            
+            logger.warning(f"Aucune donnée de prix trouvée pour {ticker}")
+            return pd.DataFrame()
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur chargement prix {ticker}: {e}")
+            return pd.DataFrame()
+    
+    def validate_historical_decisions(self, ticker: str, days: int = 7) -> Dict[str, Any]:
+        """
+        Valide les décisions historiques contre l'évolution réelle des prix
+        
+        Args:
+            ticker: Symbole de l'action
+            days: Nombre de jours à analyser
+            
+        Returns:
+            Dict contenant les résultats de validation
+        """
+        try:
+            # Charger les données
+            decisions_df = self.load_historical_decisions()
+            prices_df = self.load_historical_prices(ticker)
+            
+            if decisions_df.empty:
+                return {
+                    "status": "no_decisions",
+                    "message": "Aucune décision historique trouvée",
+                    "total_decisions": 0,
+                    "validation_results": [],
+                    "summary_stats": {}
+                }
+            
+            if prices_df.empty:
+                return {
+                    "status": "no_prices",
+                    "message": "Aucune donnée de prix trouvée",
+                    "total_decisions": len(decisions_df),
+                    "validation_results": [],
+                    "summary_stats": {}
+                }
+            
+            # Filtrer les décisions récentes
+            cutoff_date = datetime.now() - timedelta(days=days)
+            # S'assurer que les timestamps sont dans le même timezone
+            if decisions_df['timestamp'].dt.tz is not None:
+                cutoff_date = cutoff_date.replace(tzinfo=decisions_df['timestamp'].dt.tz)
+            recent_decisions = decisions_df[decisions_df['timestamp'] >= cutoff_date].copy()
+            
+            if recent_decisions.empty:
+                return {
+                    "status": "no_recent_decisions",
+                    "message": f"Aucune décision récente trouvée (derniers {days} jours)",
+                    "total_decisions": len(decisions_df),
+                    "validation_results": [],
+                    "summary_stats": {}
+                }
+            
+            # Valider chaque décision
+            validation_results = []
+            
+            for i, (_, decision) in enumerate(recent_decisions.iterrows()):
+                timestamp = decision.get('timestamp')
+                signal = decision.get('fused_signal', decision.get('fusion_score', 0.0))
+                decision_type = decision.get('decision', decision.get('recommendation', 'HOLD'))
+                confidence = decision.get('confidence', 0.0)
+                
+                if timestamp is None:
+                    continue
+                
+                # Trouver le prix le plus proche dans le temps
+                if hasattr(timestamp, 'tz_localize'):
+                    timestamp = timestamp.tz_localize(None)
+                
+                # Calculer la différence de temps
+                prices_df['time_diff'] = abs(prices_df['timestamp'] - timestamp)
+                closest_idx = prices_df['time_diff'].idxmin()
+                closest_price_data = prices_df.iloc[closest_idx]
+                
+                current_price = closest_price_data['close']
+                
+                # Simuler l'évolution du prix (dans un vrai système, on attendrait 15min)
+                future_price = self._simulate_future_price(prices_df, closest_price_data, timestamp)
+                
+                # Calculer le changement de prix
+                price_change = (future_price - current_price) / current_price * 100
+                
+                # Évaluer si la décision était correcte
+                is_correct = self._evaluate_decision_correctness(decision_type, price_change)
+                accuracy = self._calculate_decision_accuracy(decision_type, price_change)
+                
+                # Déterminer le statut
+                if accuracy >= 0.8:
+                    status = "✅ Correct"
+                elif accuracy >= 0.5:
+                    status = "⚠️ Partiellement correct"
+                else:
+                    status = "❌ Incorrect"
+                
+                result = {
+                    'index': i + 1,
+                    'timestamp': timestamp,
+                    'signal': signal,
+                    'decision': decision_type,
+                    'confidence': confidence,
+                    'current_price': current_price,
+                    'future_price': future_price,
+                    'price_change': price_change,
+                    'is_correct': is_correct,
+                    'accuracy': accuracy,
+                    'status': status
+                }
+                
+                validation_results.append(result)
+            
+            # Calculer les statistiques globales
+            total_decisions = len(validation_results)
+            correct_decisions = sum(1 for r in validation_results if r['is_correct'])
+            accuracy_rate = correct_decisions / total_decisions if total_decisions > 0 else 0
+            avg_accuracy = sum(r['accuracy'] for r in validation_results) / total_decisions if total_decisions > 0 else 0
+            
+            # Statistiques par type de décision
+            buy_decisions = [r for r in validation_results if r['decision'].upper() in ['BUY', 'ACHETER']]
+            sell_decisions = [r for r in validation_results if r['decision'].upper() in ['SELL', 'VENDRE']]
+            hold_decisions = [r for r in validation_results if r['decision'].upper() in ['HOLD', 'ATTENDRE']]
+            
+            buy_accuracy = sum(r['accuracy'] for r in buy_decisions) / len(buy_decisions) if buy_decisions else 0
+            sell_accuracy = sum(r['accuracy'] for r in sell_decisions) / len(sell_decisions) if sell_decisions else 0
+            
+            summary_stats = {
+                'total_decisions': total_decisions,
+                'correct_decisions': correct_decisions,
+                'accuracy_rate': accuracy_rate,
+                'avg_accuracy': avg_accuracy,
+                'buy_decisions': len(buy_decisions),
+                'sell_decisions': len(sell_decisions),
+                'hold_decisions': len(hold_decisions),
+                'buy_accuracy': buy_accuracy,
+                'sell_accuracy': sell_accuracy
+            }
+            
+            # Sauvegarder les résultats
+            self._save_validation_results(ticker, validation_results, summary_stats)
+            
+            return {
+                "status": "success",
+                "message": f"Validation terminée pour {total_decisions} décisions",
+                "total_decisions": total_decisions,
+                "validation_results": validation_results,
+                "summary_stats": summary_stats
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur validation historique: {e}")
+            return {
+                "status": "error",
+                "message": f"Erreur lors de la validation: {str(e)}",
+                "total_decisions": 0,
+                "validation_results": [],
+                "summary_stats": {}
+            }
+    
+    def _simulate_future_price(self, prices_df: pd.DataFrame, current_price_data: pd.Series, timestamp: datetime) -> float:
+        """Simule l'évolution du prix futur basée sur l'historique"""
+        try:
+            # Trouver l'index du prix actuel
+            current_idx = current_price_data.name
+            
+            # Prendre le prix 15min plus tard (ou le suivant disponible)
+            future_idx = min(current_idx + 1, len(prices_df) - 1)
+            future_price = prices_df.iloc[future_idx]['close']
+            
+            return future_price
+            
+        except Exception as e:
+            # Fallback: simulation simple
+            current_price = current_price_data['close']
+            volatility = 0.01  # 1% de volatilité
+            change = np.random.normal(0, volatility)
+            return current_price * (1 + change)
+    
+    def _evaluate_decision_correctness(self, decision: str, price_change: float) -> bool:
+        """Évalue si une décision était correcte basée sur l'évolution du prix"""
+        decision_upper = decision.upper()
+        
+        if decision_upper in ['BUY', 'ACHETER']:
+            return price_change > 0.5  # BUY correct si prix monte de plus de 0.5%
+        elif decision_upper in ['SELL', 'VENDRE']:
+            return price_change < -0.5  # SELL correct si prix baisse de plus de 0.5%
+        else:
+            return True  # HOLD toujours considéré comme correct
+    
+    def _calculate_decision_accuracy(self, decision: str, price_change: float) -> float:
+        """Calcule la précision d'une décision"""
+        decision_upper = decision.upper()
+        
+        if decision_upper in ['BUY', 'ACHETER']:
+            if price_change > 1.0:
+                return 1.0  # Parfait
+            elif price_change > 0.5:
+                return 0.8  # Très bon
+            elif price_change > 0:
+                return 0.6  # Bon
+            else:
+                return 0.2  # Mauvais
+        elif decision_upper in ['SELL', 'VENDRE']:
+            if price_change < -1.0:
+                return 1.0  # Parfait
+            elif price_change < -0.5:
+                return 0.8  # Très bon
+            elif price_change < 0:
+                return 0.6  # Bon
+            else:
+                return 0.2  # Mauvais
+        else:
+            return 0.7  # HOLD neutre
+    
+    def _save_validation_results(self, ticker: str, validation_results: List[Dict], summary_stats: Dict):
+        """Sauvegarde les résultats de validation"""
+        try:
+            # Créer un DataFrame des résultats
+            df_results = pd.DataFrame(validation_results)
+            
+            # Ajouter les métadonnées
+            df_results['ticker'] = ticker
+            df_results['validation_date'] = datetime.now()
+            
+            # Sauvegarder
+            df_results.to_parquet(self.validation_file, index=False)
+            
+            # Sauvegarder aussi les statistiques
+            stats_file = self.validation_path / f"{ticker}_validation_stats.json"
+            with open(stats_file, 'w') as f:
+                json.dump({
+                    'ticker': ticker,
+                    'validation_date': datetime.now().isoformat(),
+                    'summary_stats': summary_stats
+                }, f, indent=2)
+            
+            logger.info(f"✅ Résultats de validation sauvegardés pour {ticker}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur sauvegarde résultats: {e}")
+    
+    def get_validation_summary(self, ticker: str, days: int = 7) -> Dict[str, Any]:
+        """Récupère un résumé de la validation historique"""
+        try:
+            # Essayer de charger les résultats sauvegardés
+            stats_file = self.validation_path / f"{ticker}_validation_stats.json"
+            
+            if stats_file.exists():
+                with open(stats_file, 'r') as f:
+                    stats_data = json.load(f)
+                
+                # Vérifier si les données sont récentes (moins de 1 heure)
+                validation_date = datetime.fromisoformat(stats_data['validation_date'])
+                if datetime.now() - validation_date < timedelta(hours=1):
+                    return {
+                        "status": "cached",
+                        "message": "Résultats de validation récents",
+                        "summary_stats": stats_data['summary_stats']
+                    }
+            
+            # Sinon, recalculer
+            validation_result = self.validate_historical_decisions(ticker, days)
+            
+            return {
+                "status": validation_result["status"],
+                "message": validation_result["message"],
+                "summary_stats": validation_result["summary_stats"]
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération résumé: {e}")
+            return {
+                "status": "error",
+                "message": f"Erreur: {str(e)}",
+                "summary_stats": {}
+            }
+

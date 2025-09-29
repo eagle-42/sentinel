@@ -1,6 +1,6 @@
 """
 Service de fusion pour l'onglet Production
-Fusion adaptative des signaux (prix + sentiment + prédiction)
+Fusion adaptative des signaux (prix + sentiment + prédiction) avec validation
 """
 
 import pandas as pd
@@ -23,6 +23,15 @@ except ImportError as e:
     FUSION_AVAILABLE = False
     AdaptiveFusion = None
 
+try:
+    from gui.services.decision_validation_service import DecisionValidationService
+    VALIDATION_AVAILABLE = True
+    logger.info("✅ DecisionValidationService importé avec succès")
+except ImportError as e:
+    logger.warning(f"⚠️ DecisionValidationService non disponible: {e}")
+    VALIDATION_AVAILABLE = False
+    DecisionValidationService = None
+
 
 class FusionService:
     """Service de fusion adaptative pour l'onglet Production"""
@@ -30,6 +39,7 @@ class FusionService:
     def __init__(self):
         self.fusion_engine = None
         self.fusion_history = []
+        self.validation_service = None
         
         if FUSION_AVAILABLE:
             try:
@@ -37,13 +47,20 @@ class FusionService:
                 logger.info("✅ Moteur de fusion initialisé")
             except Exception as e:
                 logger.warning(f"⚠️ Erreur initialisation fusion: {e}")
+        
+        if VALIDATION_AVAILABLE:
+            try:
+                self.validation_service = DecisionValidationService()
+                logger.info("✅ Service de validation initialisé")
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur initialisation validation: {e}")
     
     def calculate_fusion_score(self, 
                              price_signal: float,
                              sentiment_signal: float, 
                              prediction_signal: float,
                              market_regime: str = "normal") -> Dict[str, Any]:
-        """Calcule le score de fusion final"""
+        """Calcule le score de fusion final avec seuils adaptatifs"""
         try:
             if self.fusion_engine:
                 # Utiliser le vrai moteur de fusion
@@ -55,6 +72,7 @@ class FusionService:
                 fusion_score = self.fusion_engine.fuse_signals(signals)
                 confidence = 0.8  # Valeur par défaut
                 weights = self.fusion_engine.current_weights
+                thresholds = self.fusion_engine.get_current_thresholds()
             else:
                 # Fallback simulation
                 fusion_score = self._simulate_fusion_score(
@@ -66,9 +84,10 @@ class FusionService:
                     "sentiment": 0.3,
                     "prediction": 0.3
                 }
+                thresholds = {"buy": 0.1, "sell": -0.1}
             
-            # Déterminer la recommandation
-            recommendation = self._get_recommendation(fusion_score, confidence)
+            # Déterminer la recommandation avec seuils adaptatifs
+            recommendation = self._get_adaptive_recommendation(fusion_score, thresholds)
             
             # Sauvegarder dans l'historique
             fusion_data = {
@@ -79,7 +98,8 @@ class FusionService:
                 "price_signal": price_signal,
                 "sentiment_signal": sentiment_signal,
                 "prediction_signal": prediction_signal,
-                "weights": weights
+                "weights": weights,
+                "thresholds": thresholds
             }
             self.fusion_history.append(fusion_data)
             
@@ -150,6 +170,15 @@ class FusionService:
             logger.error(f"❌ Erreur historique fusion: {e}")
             return []
     
+    def _get_adaptive_recommendation(self, fusion_score: float, thresholds: Dict[str, float]) -> str:
+        """Détermine la recommandation avec seuils adaptatifs"""
+        if fusion_score > thresholds.get("buy", 0.1):
+            return "BUY"
+        elif fusion_score < thresholds.get("sell", -0.1):
+            return "SELL"
+        else:
+            return "HOLD"
+    
     def get_fusion_stats(self) -> Dict[str, Any]:
         """Récupère les statistiques de fusion"""
         try:
@@ -158,19 +187,22 @@ class FusionService:
                     "total_signals": 0,
                     "avg_score": 0.5,
                     "last_recommendation": "ATTENDRE",
-                    "current_weights": {"price": 0.33, "sentiment": 0.33, "prediction": 0.34}
+                    "current_weights": {"price": 0.33, "sentiment": 0.33, "prediction": 0.34},
+                    "current_thresholds": {"buy": 0.1, "sell": -0.1}
                 }
             
             recent_data = self.fusion_history[-10:]  # 10 dernières entrées
             avg_score = np.mean([d["fusion_score"] for d in recent_data])
             last_recommendation = recent_data[-1]["recommendation"] if recent_data else "ATTENDRE"
+            current_thresholds = recent_data[-1].get("thresholds", {"buy": 0.1, "sell": -0.1})
             current_weights = recent_data[-1]["weights"] if recent_data else {"price": 0.33, "sentiment": 0.33, "prediction": 0.34}
             
             return {
                 "total_signals": len(self.fusion_history),
                 "avg_score": avg_score,
                 "last_recommendation": last_recommendation,
-                "current_weights": current_weights
+                "current_weights": current_weights,
+                "current_thresholds": current_thresholds
             }
         except Exception as e:
             logger.error(f"❌ Erreur stats fusion: {e}")
@@ -214,6 +246,125 @@ class FusionService:
             return "orange"
         else:
             return "red"
+    
+    def validate_decision(self, ticker: str, decision: str, fusion_score: float, 
+                         current_price: float) -> Dict[str, Any]:
+        """
+        Valide une décision de trading en temps réel
+        
+        Args:
+            ticker: Symbole de l'action
+            decision: Décision prise (BUY/SELL/HOLD)
+            fusion_score: Score de fusion utilisé
+            current_price: Prix actuel
+            
+        Returns:
+            Dict contenant les résultats de validation
+        """
+        try:
+            if not self.validation_service:
+                return {
+                    "status": "validation_unavailable",
+                    "message": "Service de validation non disponible",
+                    "accuracy": None,
+                    "price_change": None,
+                    "validation_time": None,
+                    "is_correct": None
+                }
+            
+            # Valider la décision
+            validation_result = self.validation_service.validate_decision(
+                ticker=ticker,
+                decision=decision,
+                fusion_score=fusion_score,
+                current_price=current_price,
+                timestamp=datetime.now()
+            )
+            
+            return validation_result
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur validation décision: {e}")
+            return {
+                "status": "error",
+                "message": f"Erreur validation: {str(e)}",
+                "accuracy": None,
+                "price_change": None,
+                "validation_time": None,
+                "is_correct": None
+            }
+    
+    def get_validation_stats(self, ticker: str, days: int = 7) -> Dict[str, Any]:
+        """
+        Récupère les statistiques de validation pour un ticker
+        
+        Args:
+            ticker: Symbole de l'action
+            days: Nombre de jours à analyser
+            
+        Returns:
+            Dict contenant les statistiques de validation
+        """
+        try:
+            if not self.validation_service:
+                return {
+                    "total_decisions": 0,
+                    "total_validations": 0,
+                    "correct_decisions": 0,
+                    "accuracy_rate": 0.0,
+                    "average_accuracy": 0.0,
+                    "buy_decisions": 0,
+                    "sell_decisions": 0,
+                    "hold_decisions": 0,
+                    "buy_accuracy": 0.0,
+                    "sell_accuracy": 0.0
+                }
+            
+            return self.validation_service.get_validation_stats(ticker, days)
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération stats validation: {e}")
+            return {
+                "total_decisions": 0,
+                "total_validations": 0,
+                "correct_decisions": 0,
+                "accuracy_rate": 0.0,
+                "average_accuracy": 0.0,
+                "buy_decisions": 0,
+                "sell_decisions": 0,
+                "hold_decisions": 0,
+                "buy_accuracy": 0.0,
+                "sell_accuracy": 0.0
+            }
+    
+    def get_adaptive_threshold_performance(self, ticker: str, days: int = 7) -> Dict[str, Any]:
+        """
+        Analyse la performance des seuils adaptatifs
+        
+        Args:
+            ticker: Symbole de l'action
+            days: Nombre de jours à analyser
+            
+        Returns:
+            Dict contenant l'analyse de performance des seuils
+        """
+        try:
+            if not self.validation_service:
+                return {
+                    "threshold_analysis": "Service de validation non disponible",
+                    "recommended_adjustments": [],
+                    "performance_score": 0.0
+                }
+            
+            return self.validation_service.get_adaptive_threshold_performance(ticker, days)
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur analyse performance seuils: {e}")
+            return {
+                "threshold_analysis": f"Erreur: {str(e)}",
+                "recommended_adjustments": [],
+                "performance_score": 0.0
+            }
     
     def _get_score_label(self, score: float) -> str:
         """Convertit le score en label"""

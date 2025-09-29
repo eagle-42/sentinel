@@ -51,8 +51,8 @@ class SentinelConfig:
                 "price_interval": os.getenv("PRICE_INTERVAL", CONSTANTS.PRICE_INTERVAL),
                 "price_period": os.getenv("PRICE_PERIOD", CONSTANTS.PRICE_PERIOD),
                 "fusion_mode": os.getenv("FUSION_MODE", CONSTANTS.FUSION_MODE),
-                "buy_threshold": CONSTANTS.BUY_THRESHOLD,
-                "sell_threshold": CONSTANTS.SELL_THRESHOLD,
+                "buy_threshold": CONSTANTS.BASE_BUY_THRESHOLD,
+                "sell_threshold": CONSTANTS.BASE_SELL_THRESHOLD,
                 "hold_confidence": CONSTANTS.HOLD_CONFIDENCE
             },
             

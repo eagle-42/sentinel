@@ -140,6 +140,15 @@ class SentimentService:
                 "sentiment_trend": "stable"
             }
     
+    def get_sentiment_score(self, ticker: str = "SPY") -> float:
+        """Récupère le score de sentiment moyen pour un ticker"""
+        try:
+            summary = self.get_sentiment_summary(ticker)
+            return summary.get('avg_sentiment', 0.0)
+        except Exception as e:
+            logger.error(f"❌ Erreur score sentiment: {e}")
+            return 0.0
+    
     def get_keywords(self, ticker: str = "SPY") -> List[Dict[str, Any]]:
         """Récupère les mots-clés impactants"""
         try:

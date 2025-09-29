@@ -28,7 +28,8 @@ class FusionConfig:
     max_weight_change: float = CONSTANTS.MAX_WEIGHT_CHANGE
     regularization_factor: float = CONSTANTS.REGULARIZATION_FACTOR
     window_size: int = 20
-    volatility_thresholds: tuple = (0.15, 0.25)  # Seuils de volatilité
+    volatility_thresholds: tuple = (CONSTANTS.VOLATILITY_LOW_THRESHOLD, CONSTANTS.VOLATILITY_HIGH_THRESHOLD)
+    adaptive_thresholds: bool = True  # Activer les seuils adaptatifs
 
 class AdaptiveFusion:
     """
@@ -44,6 +45,7 @@ class AdaptiveFusion:
             "price": self.config.base_price_weight,
             "sentiment": self.config.base_sentiment_weight
         }
+        self.current_thresholds = CONSTANTS.NORMAL_VOLATILITY_THRESHOLDS.copy()
         self.rolling_stats = {
             "price_mean": [],
             "price_std": [],
@@ -76,6 +78,9 @@ class AdaptiveFusion:
         # Détecter le régime de marché
         regime = self._detect_market_regime(price_volatility, volume_ratio)
         
+        # Mettre à jour les seuils adaptatifs
+        self._update_adaptive_thresholds(price_volatility, volume_ratio)
+        
         # Calculer les statistiques glissantes
         self._update_rolling_stats(price_signal, sentiment_signal, price_volatility, volume_ratio)
         
@@ -89,6 +94,7 @@ class AdaptiveFusion:
         result = {
             "fused_signal": fused_signal,
             "weights": self.current_weights.copy(),
+            "thresholds": self.current_thresholds.copy(),
             "regime": regime,
             "price_signal": price_signal,
             "sentiment_signal": sentiment_signal,
@@ -133,6 +139,16 @@ class AdaptiveFusion:
             trend_strength=trend_strength,
             market_stress=market_stress
         )
+    
+    def _update_adaptive_thresholds(self, volatility: float, volume_ratio: float):
+        """Met à jour les seuils adaptatifs selon les conditions de marché"""
+        if self.config.adaptive_thresholds:
+            self.current_thresholds = CONSTANTS.get_adaptive_thresholds(volatility, volume_ratio)
+            logger.debug(f"🔧 Seuils adaptatifs mis à jour: {self.current_thresholds}")
+    
+    def get_current_thresholds(self) -> Dict[str, float]:
+        """Retourne les seuils actuels"""
+        return self.current_thresholds.copy()
     
     def _update_rolling_stats(self, 
                              price_signal: float, 

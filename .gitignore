@@ -16,7 +16,9 @@ data/
 .json
 .coverage
 .png
-
+.csv 
+.cursor
+.cursorrules
 # Ajout des règles Git importantes
 .env
 __pycache__/

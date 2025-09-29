@@ -143,7 +143,12 @@ class DataMonitorService:
             import subprocess
             import sys
             
-            script_path = Path(__file__).parent.parent.parent / "scripts" / "update_prices_simple.py"
+            # Chemin correct vers le script
+            script_path = Path(__file__).parent.parent.parent.parent / "scripts" / "update_prices_simple.py"
+            
+            if not script_path.exists():
+                logger.error(f"❌ Script non trouvé: {script_path}")
+                return False
             
             # Exécuter le script de mise à jour
             result = subprocess.run([
@@ -154,6 +159,8 @@ class DataMonitorService:
             
             if success:
                 logger.info(f"✅ Données 15min mises à jour pour {ticker}")
+                # Vider le cache pour forcer le rechargement
+                self.cache.clear()
                 return True
             else:
                 logger.warning(f"⚠️ Échec mise à jour 15min pour {ticker}: {result.stderr}")

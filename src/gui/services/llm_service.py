@@ -110,7 +110,7 @@ Format: 2-3 phrases maximum.
             response = requests.post(
                 self.ollama_url, 
                 json=payload, 
-                timeout=30
+                timeout=10  # Timeout réduit pour éviter les blocages
             )
             
             if response.status_code == 200:
@@ -147,6 +147,7 @@ Format: 2-3 phrases maximum.
                     "online": True,
                     "model_available": phi3_available,
                     "models": [model.get('name', '') for model in models],
+                    "model": "phi3:mini" if phi3_available else "N/A",
                     "status": "✅ Service actif" if phi3_available else "⚠️ Modèle phi3 non trouvé"
                 }
             else:
@@ -154,6 +155,7 @@ Format: 2-3 phrases maximum.
                     "online": False,
                     "model_available": False,
                     "models": [],
+                    "model": "N/A",
                     "status": "❌ Service indisponible"
                 }
                 
@@ -163,6 +165,7 @@ Format: 2-3 phrases maximum.
                 "online": False,
                 "model_available": False,
                 "models": [],
+                "model": "N/A",
                 "status": f"❌ Erreur: {str(e)}"
             }
     
@@ -196,3 +199,68 @@ Format: 2-3 phrases maximum.
             
         except Exception as e:
             logger.error(f"❌ Erreur sauvegarde synthèse: {e}")
+    
+    def generate_automatic_synthesis(self, ticker: str, decision_data: Dict) -> Dict:
+        """Génère automatiquement une synthèse basée sur une décision de trading"""
+        try:
+            # Extraire les données de la décision
+            recommendation = decision_data.get('recommendation', decision_data.get('decision', 'HOLD'))
+            confidence = decision_data.get('confidence', 0.5)
+            fused_signal = decision_data.get('fused_signal', decision_data.get('score', 0.0))
+            signals = decision_data.get('signals', {})
+            
+            # Construire le prompt pour synthèse automatique
+            prompt = f"""
+Analyse trading automatique (max 100 mots):
+
+Ticker: {ticker}
+Décision: {recommendation}
+Confiance: {confidence:.1%}
+Signal fusionné: {fused_signal:.3f}
+Signaux: Prix={signals.get('price', 0):.3f}, Sentiment={signals.get('sentiment', 0):.3f}
+
+Synthèse: Explique pourquoi {recommendation} pour {ticker}.
+Focus: Confiance élevée, signaux cohérents.
+Format: 2-3 phrases maximum.
+"""
+            
+            # Appel à Ollama
+            response = self._call_ollama(prompt)
+            
+            if response:
+                synthesis_data = {
+                    "success": True,
+                    "synthesis": response,
+                    "model": self.model,
+                    "timestamp": datetime.now().isoformat(),
+                    "tokens_used": len(response.split()),
+                    "auto_generated": True,
+                    "decision_timestamp": decision_data.get('timestamp', ''),
+                    "confidence": confidence,
+                    "fused_signal": fused_signal
+                }
+                
+                # Sauvegarder automatiquement
+                self.save_synthesis(ticker, synthesis_data)
+                
+                return synthesis_data
+            else:
+                return {
+                    "success": False,
+                    "synthesis": "Synthèse automatique indisponible",
+                    "model": self.model,
+                    "timestamp": datetime.now().isoformat(),
+                    "tokens_used": 0,
+                    "auto_generated": True
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur synthèse automatique: {e}")
+            return {
+                "success": False,
+                "synthesis": f"Erreur: {str(e)}",
+                "model": self.model,
+                "timestamp": datetime.now().isoformat(),
+                "tokens_used": 0,
+                "auto_generated": True
+            }

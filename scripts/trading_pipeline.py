@@ -36,8 +36,8 @@ class TradingPipeline:
         self.prediction_engine = PredictionEngine()
         
         # Configuration de trading
-        self.buy_threshold = CONSTANTS.BUY_THRESHOLD
-        self.sell_threshold = CONSTANTS.SELL_THRESHOLD
+        self.buy_threshold = CONSTANTS.BASE_BUY_THRESHOLD
+        self.sell_threshold = CONSTANTS.BASE_SELL_THRESHOLD
         self.hold_confidence = CONSTANTS.HOLD_CONFIDENCE
         
         # État de trading

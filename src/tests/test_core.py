@@ -347,6 +347,6 @@ class TestIntegration:
         # Vérifier que les constantes sont cohérentes
         assert len(CONSTANTS.TOP_FEATURES) >= CONSTANTS.LSTM_TOP_FEATURES
         assert CONSTANTS.BASE_PRICE_WEIGHT + CONSTANTS.BASE_SENTIMENT_WEIGHT == 1.0
-        assert CONSTANTS.BUY_THRESHOLD > 0
-        assert CONSTANTS.SELL_THRESHOLD < 0
+        assert CONSTANTS.BASE_BUY_THRESHOLD > 0
+        assert CONSTANTS.BASE_SELL_THRESHOLD < 0
         assert CONSTANTS.LSTM_SEQUENCE_LENGTH > 0
