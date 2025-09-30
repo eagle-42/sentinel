@@ -262,9 +262,9 @@ class NewsRefresher:
         
         # Fusionner les données (éviter les doublons)
         if not existing_data.empty:
-            # Supprimer les doublons basés sur title + source + timestamp
+            # Supprimer les doublons basés sur title + source + ts_utc
             df = pd.concat([existing_data, df], ignore_index=True)
-            df = df.drop_duplicates(subset=['title', 'source', 'timestamp'], keep='last')
+            df = df.drop_duplicates(subset=['title', 'source', 'ts_utc'], keep='last')
         
         # Sauvegarder
         df.to_parquet(file_path, index=False)
