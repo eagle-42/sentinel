@@ -17,13 +17,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from gui.constants import normalize_columns
 
 try:
-    from core.prediction import LSTMPredictor
+    from core.prediction import PricePredictor
     LSTM_AVAILABLE = True
-    logger.info("✅ LSTMPredictor importé avec succès")
+    logger.info("✅ PricePredictor importé avec succès")
 except ImportError as e:
-    logger.warning(f"⚠️ LSTMPredictor non disponible: {e}")
+    logger.warning(f"⚠️ PricePredictor non disponible: {e}")
     LSTM_AVAILABLE = False
-    LSTMPredictor = None
+    PricePredictor = None
 
 
 class PredictionService:
@@ -39,12 +39,12 @@ class PredictionService:
         """Charge le modèle LSTM réel"""
         try:
             if not LSTM_AVAILABLE:
-                logger.warning("⚠️ LSTMPredictor non disponible, passage en mode fallback")
+                logger.warning("⚠️ PricePredictor non disponible, passage en mode fallback")
                 self.fallback_mode = True
                 return False
                 
             if self.predictor is None:
-                self.predictor = LSTMPredictor("SPY")
+                self.predictor = PricePredictor("SPY")
                 success = self.predictor.load_model()
                 
                 if success:
@@ -79,46 +79,62 @@ class PredictionService:
             logger.error(f"❌ Erreur prédiction: {e}")
             return self._create_empty_prediction()
     
+    def predict_with_features(self, ticker: str, horizon: int = 20) -> Dict[str, Any]:
+        """Génère des prédictions LSTM en chargeant les features techniques"""
+        try:
+            from gui.services.data_service import DataService
+            
+            # Charger les features techniques
+            data_service = DataService()
+            features_df = data_service.load_data(ticker, use_features=True)
+            
+            if features_df.empty:
+                logger.warning(f"⚠️ Aucune feature trouvée pour {ticker}")
+                return self._create_empty_prediction()
+            
+            # Charger le modèle si nécessaire
+            if not self._load_model():
+                return self._fallback_predict(features_df, horizon)
+            
+            # Utiliser le vrai modèle LSTM avec les features
+            return self._real_predict(features_df, horizon)
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur prédiction avec features: {e}")
+            return self._create_empty_prediction()
+    
     def _real_predict(self, df: pd.DataFrame, horizon: int) -> Dict[str, Any]:
         """Prédiction avec le vrai modèle LSTM"""
         try:
-            # Normaliser les colonnes en minuscules
-            df_normalized = normalize_columns(df)
+            # Convertir l'index DATE en colonne si nécessaire
+            if 'DATE' in df.index.names:
+                df = df.reset_index()
             
-            # Prédictions historiques
-            historical_predictions = self.predictor.predict(df_normalized, horizon=1)
+            # Pour les features techniques, ne pas normaliser les colonnes
+            # car elles sont déjà dans le bon format
+            df_normalized = df.copy()
             
-            if 'error' in historical_predictions:
-                logger.warning(f"⚠️ Erreur prédiction historique: {historical_predictions['error']}")
+            # Prédictions complètes (historiques + futures) avec l'horizon demandé
+            prediction_result = self.predictor.predict(df_normalized, horizon=horizon)
+            
+            if 'error' in prediction_result:
+                logger.warning(f"⚠️ Erreur prédiction: {prediction_result['error']}")
                 return self._fallback_predict(df, horizon)
             
-            # Prédictions futures
-            future_predictions = []
-            future_dates = []
+            # Extraire les prédictions
+            historical_predictions = prediction_result.get('historical_predictions', [])
+            future_predictions = prediction_result.get('predictions', [])
+            future_dates = prediction_result.get('prediction_dates', [])
             
-            # Utiliser les dernières données pour prédire l'avenir
-            last_date = df['DATE'].iloc[-1]
+            # Si pas de dates futures, les générer
+            if not future_dates and future_predictions:
+                last_date = pd.to_datetime(df['DATE'].iloc[-1])
+                future_dates = [last_date + pd.Timedelta(days=i+1) for i in range(len(future_predictions))]
             
-            for i in range(horizon):
-                # Créer une séquence pour la prédiction future
-                future_data = df.tail(20).copy()  # Utiliser les 20 derniers jours
-                
-                # Prédire le prochain jour
-                pred_result = self.predictor.predict(future_data, horizon=1)
-                
-                if 'error' in pred_result:
-                    logger.warning(f"⚠️ Erreur prédiction future jour {i+1}: {pred_result['error']}")
-                    break
-                
-                # Ajouter la prédiction
-                if 'predictions' in pred_result and len(pred_result['predictions']) > 0:
-                    future_predictions.append(pred_result['predictions'][0])
-                    future_dates.append(pd.to_datetime(last_date) + pd.Timedelta(days=i+1))
-            
-            logger.info(f"✅ Prédiction LSTM: {len(historical_predictions.get('predictions', []))} historiques + {len(future_predictions)} futures")
+            logger.info(f"✅ Prédiction LSTM: {len(historical_predictions)} historiques + {len(future_predictions)} futures")
             
             return {
-                'historical_predictions': historical_predictions.get('predictions', []),
+                'historical_predictions': historical_predictions,
                 'predictions': future_predictions,
                 'prediction_dates': future_dates,
                 'model_type': 'lstm_real',
@@ -135,12 +151,37 @@ class PredictionService:
             if df.empty:
                 return self._create_empty_prediction()
             
-            # Normaliser les colonnes en minuscules
-            df_normalized = normalize_columns(df)
+            # Si 'date' n'est pas dans les colonnes, essayer de l'extraire de l'index
+            if df.index.name == 'DATE' and 'date' not in df.columns:
+                df_normalized = df.reset_index()
+            else:
+                df_normalized = df.copy()
             
-            df_sorted = df_normalized.sort_values('date').reset_index(drop=True)
-            dates = df_sorted['date'].tolist()
-            prices = df_sorted['close'].tolist()
+            # Normaliser les colonnes en minuscules
+            try:
+                df_normalized = normalize_columns(df_normalized)
+            except ValueError as e:
+                logger.error(f"❌ Erreur normalisation: {e}")
+                return self._create_empty_prediction()
+            
+            # Pour les features, utiliser l'index comme dates et une colonne numérique comme prix
+            if 'date' not in df_normalized.columns and df_normalized.index.name == 'DATE':
+                df_sorted = df_normalized.reset_index()
+                dates = df_sorted['DATE'].tolist()
+            else:
+                df_sorted = df_normalized.sort_values('date').reset_index(drop=True)
+                dates = df_sorted['date'].tolist()
+            
+            # Utiliser une colonne numérique comme référence de prix
+            numeric_cols = df_sorted.select_dtypes(include=[np.number]).columns.tolist()
+            if not numeric_cols:
+                logger.error("❌ Aucune colonne numérique trouvée pour fallback")
+                return self._create_empty_prediction()
+            
+            # Utiliser la première colonne numérique comme prix de référence
+            price_col = numeric_cols[0]
+            prices = df_sorted[price_col].tolist()
+            logger.info(f"✅ Utilisation de {price_col} comme prix de référence pour fallback")
             
             # Prédictions historiques (simulation basée sur les prix réels)
             historical_predictions = []

@@ -1,5 +1,16 @@
 # 🚀 Sentinel2 - Système de Trading Algorithmique TDD
 
+# 1. Démarrer en mode production
+cd /Users/eagle/DevTools/sentinel2
+caffeinate -d ./scripts/sentinel2.sh prod
+
+# 2. Accéder à l'interface
+# Ouvrir http://localhost:8501 dans le navigateur
+
+# 3. Arrêter quand terminé
+./scripts/sentinel2.sh stop
+
+
 ## 📊 **RÉSUMÉ EXÉCUTIF**
 
 **Version** : 2.0  

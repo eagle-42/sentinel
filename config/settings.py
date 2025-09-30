@@ -53,8 +53,17 @@ class Settings:
         
         if self.spy_keywords is None:
             keywords_str = os.getenv("SPY_KEYWORDS", 
-                r"\bS&P\s*500\b,\bSPY\b,\bS&P500\b,"
-                r"\bmarket\b,\bstocks\b,\bequity\b,\bindex\b"
+                r"\bS&P\s*500\b,\bSPY\b,\bS&P500\b,\bS&P-500\b,"
+                r"\bmarket\b,\bstocks\b,\bequity\b,\bindex\b,\bstock market\b,"
+                r"\bequity market\b,\bwall street\b,\bdow jones\b,\bnasdaq\b,"
+                r"\bbroad market\b,\bmarket index\b,\bus market\b,\bamerican market\b,"
+                r"\bstock index\b,\bmarket benchmark\b,\bmarket performance\b,"
+                r"\bmarket sentiment\b,\bmarket outlook\b,\bmarket analysis\b,"
+                r"\bmarket trends\b,\bmarket volatility\b,\bmarket rally\b,"
+                r"\bmarket decline\b,\bmarket correction\b,\bbull market\b,"
+                r"\bbear market\b,\bmarket cap\b,\bmarket capitalization\b,"
+                r"\bsector performance\b,\bmarket sector\b,\bfinancial market\b,"
+                r"\bsecurities market\b"
             )
             self.spy_keywords = [kw.strip() for kw in keywords_str.split(",") if kw.strip()]
         

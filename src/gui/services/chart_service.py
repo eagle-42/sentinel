@@ -152,8 +152,6 @@ class ChartService:
                 yaxis_title="Prix ($)",
                 hovermode='x unified',
                 showlegend=True,
-                height=500,
-                width=800,
                 template="plotly_white",
                 legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
                 margin=dict(l=50, r=50, t=50, b=50),
@@ -215,8 +213,6 @@ class ChartService:
                 title=f"{ticker} - Volume et Volatilité ({period})",
                 xaxis_title="Date",
                 yaxis_title="Volume / Volatilité",
-                height=500,
-                width=800,
                 template="plotly_white",
                 showlegend=True,
                 legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
@@ -274,8 +270,6 @@ class ChartService:
                 title=f"{ticker} - Score de Sentiment ({period})",
                 xaxis_title="Date",
                 yaxis_title="Score de Sentiment (%)",
-                height=500,
-                width=800,
                 template="plotly_white",
                 showlegend=True,
                 legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
@@ -449,7 +443,6 @@ class ChartService:
                 yaxis_title="Prix SPY ($)",
                 hovermode='x unified',
                 showlegend=True,
-                height=700,
                 template="plotly_white",
                 legend=dict(
                     yanchor="top",
@@ -522,6 +515,5 @@ class ChartService:
         fig.update_layout(
             xaxis=dict(showgrid=False, showticklabels=False),
             yaxis=dict(showgrid=False, showticklabels=False),
-            height=300, width=600
         )
         return fig

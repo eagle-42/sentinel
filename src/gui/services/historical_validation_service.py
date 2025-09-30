@@ -132,10 +132,12 @@ class HistoricalValidationService:
                 }
             
             # Filtrer les décisions récentes
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             # S'assurer que les timestamps sont dans le même timezone
             if decisions_df['timestamp'].dt.tz is not None:
-                cutoff_date = cutoff_date.replace(tzinfo=decisions_df['timestamp'].dt.tz)
+                cutoff_date = cutoff_date.astimezone(decisions_df['timestamp'].dt.tz)
+            elif decisions_df['timestamp'].dt.tz is None:
+                cutoff_date = cutoff_date.replace(tzinfo=None)
             recent_decisions = decisions_df[decisions_df['timestamp'] >= cutoff_date].copy()
             
             if recent_decisions.empty:
@@ -159,9 +161,15 @@ class HistoricalValidationService:
                 if timestamp is None:
                     continue
                 
-                # Trouver le prix le plus proche dans le temps
-                if hasattr(timestamp, 'tz_localize'):
-                    timestamp = timestamp.tz_localize(None)
+                # Normaliser les timezones pour la comparaison
+                if prices_df['timestamp'].dt.tz is not None and timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=prices_df['timestamp'].dt.tz)
+                elif prices_df['timestamp'].dt.tz is None and timestamp.tzinfo is not None:
+                    timestamp = timestamp.replace(tzinfo=None)
+                elif prices_df['timestamp'].dt.tz is not None and timestamp.tzinfo is not None:
+                    # Convertir les deux en UTC pour la comparaison
+                    timestamp = timestamp.astimezone(timezone.utc)
+                    prices_df['timestamp'] = prices_df['timestamp'].dt.tz_convert(timezone.utc)
                 
                 # Calculer la différence de temps
                 prices_df['time_diff'] = abs(prices_df['timestamp'] - timestamp)

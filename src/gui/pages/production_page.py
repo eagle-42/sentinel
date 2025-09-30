@@ -489,12 +489,11 @@ def show_production_page():
                         title=f"Prix {ticker} - 15min (7 derniers jours)",
                         xaxis_title="Heure",
                         yaxis_title="Prix ($)",
-                        height=400,
                         showlegend=True,
                         hovermode='x unified'
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, config={'displayModeBar': False})
                     
                     # Afficher les statistiques
                     col1, col2, col3, col4 = st.columns(4)
@@ -858,7 +857,7 @@ def show_decisions_table(ticker):
         # Récupérer les données de validation historique
         from gui.services.historical_validation_service import HistoricalValidationService
         historical_validation = HistoricalValidationService()
-        validation_summary = historical_validation.get_validation_summary(ticker, days=1)  # Seulement le 29 septembre
+        validation_summary = historical_validation.get_validation_summary(ticker, days=7)  # 7 derniers jours
         validation_results = validation_summary.get('validation_results', [])
         
         if validation_results:
@@ -946,7 +945,7 @@ def show_decisions_table(ticker):
                 # Afficher le tableau en pleine largeur
                 st.dataframe(
                     df_table, 
-                    use_container_width=True,
+                    width='stretch',
                     height=300,
                     column_config={
                         "N°": st.column_config.NumberColumn("N°", width="small"),
@@ -1059,46 +1058,89 @@ def show_decisions_table(ticker):
 
 
 def _check_market_status():
-    """Vérifie l'état du marché (ouvert/fermé) - Horaires US (EST)"""
+    """Vérifie l'état du marché (ouvert/fermé) - Horaires US (EDT/EST)"""
+    import pytz
     from datetime import timezone, timedelta
     
-    # Créer un timezone EST (UTC-5) ou EDT (UTC-4) selon la saison
-    # Pour simplifier, on utilise EST (UTC-5)
-    est = timezone(timedelta(hours=-5))
-    now_est = datetime.now(est)
-    current_time = now_est.strftime("%H:%M")
-    
-    # Heures de marché US (9h30 - 16h00 EST, du lundi au vendredi)
-    market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
-    market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
-    
-    # Vérifier si c'est un jour de semaine
-    is_weekday = now_est.weekday() < 5  # 0-4 = lundi-vendredi
-    
-    if is_weekday and market_open <= now_est <= market_close:
-        return {
-            "is_open": True,
-            "current_time": current_time,
-            "timezone": "EST",
-            "next_close": market_close.strftime("%H:%M"),
-            "next_open": "09:30" if now_est.date() == market_open.date() else "Lundi 09:30"
-        }
-    else:
-        # Calculer la prochaine ouverture
-        if now_est.weekday() >= 5:  # Weekend
-            days_until_monday = 7 - now_est.weekday()
-            next_open = now_est + timedelta(days=days_until_monday)
-        elif now_est < market_open:  # Avant l'ouverture
-            next_open = now_est
-        else:  # Après la fermeture
-            next_open = now_est + timedelta(days=1)
+    # Utiliser pytz pour gérer correctement l'heure d'été américaine
+    try:
+        # Timezone US Eastern (gère automatiquement EST/EDT)
+        us_eastern = pytz.timezone('US/Eastern')
+        now_est = datetime.now(us_eastern)
+        current_time = now_est.strftime("%H:%M")
         
-        next_open = next_open.replace(hour=9, minute=30, second=0, microsecond=0)
+        # Heures de marché US (9h30 - 16h00, du lundi au vendredi)
+        market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
         
-        return {
-            "is_open": False,
-            "current_time": current_time,
-            "timezone": "EST",
-            "next_open": next_open.strftime("%A %H:%M"),
-            "next_close": "16:00"
-        }
+        # Vérifier si c'est un jour de semaine
+        is_weekday = now_est.weekday() < 5  # 0-4 = lundi-vendredi
+        
+        if is_weekday and market_open <= now_est <= market_close:
+            return {
+                "is_open": True,
+                "current_time": current_time,
+                "timezone": "EDT" if now_est.dst() else "EST",
+                "next_close": market_close.strftime("%H:%M"),
+                "next_open": "09:30" if now_est.date() == market_open.date() else "Lundi 09:30"
+            }
+        else:
+            # Calculer la prochaine ouverture
+            if now_est.weekday() >= 5:  # Weekend
+                days_until_monday = 7 - now_est.weekday()
+                next_open = now_est + timedelta(days=days_until_monday)
+            elif now_est < market_open:  # Avant l'ouverture
+                next_open = now_est
+            else:  # Après la fermeture
+                next_open = now_est + timedelta(days=1)
+            
+            next_open = next_open.replace(hour=9, minute=30, second=0, microsecond=0)
+            
+            return {
+                "is_open": False,
+                "current_time": current_time,
+                "timezone": "EDT" if now_est.dst() else "EST",
+                "next_open": next_open.strftime("%A %H:%M"),
+                "next_close": "16:00"
+            }
+    except ImportError:
+        # Fallback si pytz n'est pas disponible
+        # Utiliser EDT (UTC-4) pour septembre 2025
+        edt = timezone(timedelta(hours=-4))
+        now_est = datetime.now(edt)
+        current_time = now_est.strftime("%H:%M")
+        
+        # Heures de marché US (9h30 - 16h00 EDT, du lundi au vendredi)
+        market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
+        
+        # Vérifier si c'est un jour de semaine
+        is_weekday = now_est.weekday() < 5  # 0-4 = lundi-vendredi
+        
+        if is_weekday and market_open <= now_est <= market_close:
+            return {
+                "is_open": True,
+                "current_time": current_time,
+                "timezone": "EDT",
+                "next_close": market_close.strftime("%H:%M"),
+                "next_open": "09:30" if now_est.date() == market_open.date() else "Lundi 09:30"
+            }
+        else:
+            # Calculer la prochaine ouverture
+            if now_est.weekday() >= 5:  # Weekend
+                days_until_monday = 7 - now_est.weekday()
+                next_open = now_est + timedelta(days=days_until_monday)
+            elif now_est < market_open:  # Avant l'ouverture
+                next_open = now_est
+            else:  # Après la fermeture
+                next_open = now_est + timedelta(days=1)
+            
+            next_open = next_open.replace(hour=9, minute=30, second=0, microsecond=0)
+            
+            return {
+                "is_open": False,
+                "current_time": current_time,
+                "timezone": "EDT",
+                "next_open": next_open.strftime("%A %H:%M"),
+                "next_close": "16:00"
+            }

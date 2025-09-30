@@ -1,6 +1,6 @@
 """
-🔮 Prédictions LSTM Optimisées
-Modèle LSTM optimisé basé sur les insights des analyses
+🔮 Prédictions LSTM pour Sentinel2
+Modèle LSTM optimisé pour la prédiction des prix financiers
 """
 
 import torch
@@ -11,113 +11,51 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from loguru import logger
 from sklearn.preprocessing import RobustScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from constants import CONSTANTS
 
-class LSTMModel(nn.Module):
-    """Modèle LSTM PyTorch optimisé pour Sentinel2"""
+class FinancialLSTM(nn.Module):
+    """Modèle LSTM optimisé pour la prédiction financière"""
     
-    def __init__(self, 
-                 input_size: int,
-                 hidden_sizes: List[int] = None,
-                 num_layers: int = 2,
-                 dropout_rate: float = None,
-                 task: str = 'regression'):
-        super(LSTMModel, self).__init__()
-        
-        self.input_size = input_size
-        self.hidden_sizes = hidden_sizes or CONSTANTS.LSTM_HIDDEN_SIZES
+    def __init__(self, input_size: int = 15, hidden_size: int = 64, num_layers: int = 2, output_size: int = 1):
+        super(FinancialLSTM, self).__init__()
+        self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.task = task
-        self.dropout_rate = dropout_rate or CONSTANTS.LSTM_DROPOUT_RATE
         
-        # Couches LSTM
-        self.lstm_layers = nn.ModuleList()
-        self.batch_norms = nn.ModuleList()
-        self.dropouts = nn.ModuleList()
+        # Architecture LSTM
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
+        self.fc1 = nn.Linear(hidden_size, 32)
+        self.fc2 = nn.Linear(32, output_size)
+        self.dropout = nn.Dropout(0.2)
         
-        # Première couche LSTM
-        self.lstm_layers.append(
-            nn.LSTM(input_size, self.hidden_sizes[0], 
-                   num_layers=1, batch_first=True, dropout=self.dropout_rate)
-        )
-        self.batch_norms.append(nn.BatchNorm1d(self.hidden_sizes[0]))
-        self.dropouts.append(nn.Dropout(self.dropout_rate))
-        
-        # Couches LSTM supplémentaires
-        for i in range(1, len(self.hidden_sizes)):
-            self.lstm_layers.append(
-                nn.LSTM(self.hidden_sizes[i-1], self.hidden_sizes[i], 
-                       num_layers=1, batch_first=True, dropout=self.dropout_rate)
-            )
-            self.batch_norms.append(nn.BatchNorm1d(self.hidden_sizes[i]))
-            self.dropouts.append(nn.Dropout(self.dropout_rate))
-        
-        # Couches denses
-        self.fc1 = nn.Linear(self.hidden_sizes[-1], 32)
-        self.fc1_bn = nn.BatchNorm1d(32)
-        self.fc1_dropout = nn.Dropout(self.dropout_rate)
-        
-        # Couche de sortie
-        if task == 'regression':
-            self.fc2 = nn.Linear(32, 1)
-        else:  # classification
-            self.fc2 = nn.Linear(32, 1)
-    
     def forward(self, x):
-        """Forward pass du modèle LSTM"""
         batch_size = x.size(0)
+        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_size, device=x.device)
+        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size, device=x.device)
         
-        # LSTM layers
-        for i, (lstm, bn, dropout) in enumerate(zip(self.lstm_layers, self.batch_norms, self.dropouts)):
-            if i == 0:
-                lstm_out, _ = lstm(x)
-            else:
-                lstm_out, _ = lstm(lstm_out)
-            
-            # Batch normalization sur la dernière dimension temporelle
-            lstm_out = lstm_out.contiguous().view(-1, lstm_out.size(-1))
-            lstm_out = bn(lstm_out)
-            lstm_out = lstm_out.view(batch_size, -1, lstm_out.size(-1))
-            
-            # Dropout
-            lstm_out = dropout(lstm_out)
+        out, _ = self.lstm(x, (h0, c0))
+        out = out[:, -1, :]  # Prendre la dernière sortie
+        out = torch.relu(self.fc1(out))
+        out = self.dropout(out)
+        out = self.fc2(out)
         
-        # Prendre la dernière sortie de la séquence
-        last_output = lstm_out[:, -1, :]  # (batch_size, hidden_size)
-        
-        # Couches denses
-        x = torch.relu(self.fc1(last_output))
-        x = self.fc1_bn(x)
-        x = self.fc1_dropout(x)
-        
-        # Sortie finale
-        output = self.fc2(x)
-        
-        if self.task == 'classification':
-            output = torch.sigmoid(output)
-        
-        return output
+        return out
 
-class LSTMPredictor:
-    """Prédicteur LSTM optimisé pour Sentinel2"""
+class PricePredictor:
+    """Prédicteur de prix utilisant un modèle LSTM"""
     
     def __init__(self, ticker: str = "SPY"):
-        """Initialise le prédicteur LSTM"""
         self.ticker = ticker.upper()
-        self.model = None
-        self.scaler = RobustScaler()
-        self.feature_columns = CONSTANTS.get_feature_columns()
-        self.sequence_length = CONSTANTS.LSTM_SEQUENCE_LENGTH
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model: Optional[nn.Module] = None
+        self.scaler: Optional[RobustScaler] = None
         self.is_loaded = False
-        
-        logger.info(f"🔮 Prédicteur LSTM initialisé pour {self.ticker}")
-    
+        self.sequence_length = CONSTANTS.LSTM_SEQUENCE_LENGTH
+        self.feature_columns = CONSTANTS.get_feature_columns()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info(f"🔮 Prédicteur initialisé pour {self.ticker}")
+
     def load_model(self, model_path: Optional[Path] = None) -> bool:
         """Charge le modèle LSTM"""
         try:
@@ -134,26 +72,20 @@ class LSTMPredictor:
                     logger.error(f"❌ Aucune version de modèle trouvée pour {self.ticker}")
                     return False
                 
-                latest_version = max(versions, key=lambda x: int(x.name.replace("version", "")))
-                model_path = latest_version / "lstm_model.pth"
+                latest_version = max(versions, key=lambda x: int(x.name.replace("version_", "")))
+                model_path = latest_version / "model.pkl"
             
             if not model_path.exists():
                 logger.error(f"❌ Modèle non trouvé: {model_path}")
                 return False
             
+            # Créer la classe FinancialLSTM dans __main__ pour la compatibilité
+            sys.modules['__main__'].FinancialLSTM = FinancialLSTM
+            # Alias pour l'ancien nom
+            sys.modules['__main__'].SimpleLSTM = FinancialLSTM
+            
             # Charger le modèle
-            checkpoint = torch.load(model_path, map_location=self.device)
-            
-            # Reconstruire le modèle
-            input_size = len(self.feature_columns)
-            self.model = LSTMModel(
-                input_size=input_size,
-                hidden_sizes=CONSTANTS.LSTM_HIDDEN_SIZES,
-                dropout_rate=CONSTANTS.LSTM_DROPOUT_RATE,
-                task='regression'
-            )
-            
-            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.model = torch.load(model_path, map_location=self.device, weights_only=False)
             self.model.to(self.device)
             self.model.eval()
             
@@ -171,38 +103,44 @@ class LSTMPredictor:
         except Exception as e:
             logger.error(f"❌ Erreur chargement modèle: {e}")
             return False
-    
+
     def prepare_features(self, data: pd.DataFrame) -> np.ndarray:
         """Prépare les features pour le modèle LSTM"""
         try:
-            # Vérifier que les colonnes nécessaires existent
-            missing_cols = [col for col in self.feature_columns if col not in data.columns]
-            if missing_cols:
-                logger.warning(f"⚠️ Colonnes manquantes: {missing_cols}")
-                # Utiliser les colonnes disponibles
-                available_cols = [col for col in self.feature_columns if col in data.columns]
-                if not available_cols:
-                    logger.error("❌ Aucune colonne de feature disponible")
-                    return None
-                feature_data = data[available_cols]
-            else:
-                feature_data = data[self.feature_columns]
+            # Chercher les colonnes en tenant compte de la casse
+            available_cols = []
+            for expected_col in self.feature_columns:
+                found = False
+                for data_col in data.columns:
+                    if expected_col.upper() == data_col.upper():
+                        available_cols.append(data_col)
+                        found = True
+                        break
+                if not found:
+                    logger.warning(f"⚠️ Colonne manquante: {expected_col}")
+            
+            if not available_cols:
+                logger.error("❌ Aucune colonne de feature disponible")
+                return None
+            
+            if len(available_cols) != len(self.feature_columns):
+                logger.warning(f"⚠️ Seulement {len(available_cols)}/{len(self.feature_columns)} features trouvées")
+            
+            feature_data = data[available_cols]
             
             # Normaliser les features
             if hasattr(self.scaler, 'scale_'):
-                # Scaler déjà entraîné
                 features_scaled = self.scaler.transform(feature_data)
             else:
-                # Premier passage, ajuster le scaler
                 features_scaled = self.scaler.fit_transform(feature_data)
             
-            logger.debug(f"🔮 Features préparées: {features_scaled.shape}")
+            # logger.debug(f"🔮 Features préparées: {features_scaled.shape}")
             return features_scaled
             
         except Exception as e:
             logger.error(f"❌ Erreur préparation features: {e}")
             return None
-    
+
     def create_sequences(self, features: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Crée les séquences temporelles pour le LSTM"""
         if len(features) < self.sequence_length:
@@ -234,18 +172,21 @@ class LSTMPredictor:
             if X is None:
                 return {"error": "Pas assez de données pour créer les séquences"}
             
+            # Cloner les données numpy pour éviter les erreurs de mémoire
+            X = X.copy()
+            y = y.copy()
+            X = np.ascontiguousarray(X)
+            y = np.ascontiguousarray(y)
+            
+            # Sauvegarder une copie de X pour les prédictions futures
+            X_backup = X.copy()
             # Prédictions historiques
             historical_predictions = []
             with torch.no_grad():
                 for i in range(len(X)):
-                    # Prendre la séquence
                     sequence = torch.FloatTensor(X[i:i+1]).to(self.device)
-                    
-                    # Prédiction
                     pred = self.model(sequence)
                     pred_value = pred.cpu().numpy()[0, 0]
-                    
-                    # Dénormaliser (approximation)
                     historical_predictions.append(pred_value)
             
             # Prédictions futures
@@ -254,20 +195,38 @@ class LSTMPredictor:
             
             if horizon > 0:
                 # Utiliser la dernière séquence pour prédire l'avenir
-                last_sequence = torch.FloatTensor(X[-1:]).to(self.device)
+                last_sequence = torch.FloatTensor(X_backup[-1:]).to(self.device)
                 
                 for i in range(horizon):
                     with torch.no_grad():
+                        # Vérifier que la séquence n'est pas vide
+                        if last_sequence.numel() == 0:
+                            logger.error(f"❌ Séquence vide détectée avant prédiction {i+1}")
+                            break
+                        
                         pred = self.model(last_sequence)
                         pred_value = pred.cpu().numpy()[0, 0]
                         future_predictions.append(pred_value)
                     
                     # Mettre à jour la séquence pour la prochaine prédiction
-                    # (approximation simple)
-                    new_sequence = last_sequence.clone()
-                    new_sequence[0, :-1] = new_sequence[0, 1:]
-                    new_sequence[0, -1] = pred_value
-                    last_sequence = new_sequence
+                    new_sequence_data = last_sequence.cpu().numpy().copy()
+                    
+                    if new_sequence_data.ndim == 3 and new_sequence_data.shape[1] > 1:
+                        # Décaler la séquence d'un pas vers la gauche
+                        new_sequence_data[0, :-1, :] = new_sequence_data[0, 1:, :]
+                        # Répéter la dernière ligne pour la nouvelle position
+                        new_sequence_data[0, -1, :] = new_sequence_data[0, -2, :]
+                    else:
+                        # Si la forme est incorrecte, recréer la séquence
+                        logger.warning(f"⚠️ Forme de séquence incorrecte: {new_sequence_data.shape}")
+                        new_sequence_data = X_backup[-1:].copy()
+                    
+                    # Vérifier que la séquence n'est pas vide avant de créer le tensor
+                    if new_sequence_data.size > 0:
+                        last_sequence = torch.FloatTensor(new_sequence_data).to(self.device)
+                    else:
+                        logger.error(f"❌ Séquence vide détectée: {new_sequence_data.shape}")
+                        break
                     
                     # Date future
                     if 'DATE' in data.columns:
@@ -289,109 +248,6 @@ class LSTMPredictor:
         except Exception as e:
             logger.error(f"❌ Erreur prédiction: {e}")
             return {"error": str(e)}
-    
-    def evaluate_performance(self, data: pd.DataFrame) -> Dict[str, float]:
-        """Évalue la performance du modèle"""
-        if not self.is_loaded:
-            return {"error": "Modèle non chargé"}
-        
-        try:
-            # Préparer les features
-            features = self.prepare_features(data)
-            if features is None:
-                return {"error": "Impossible de préparer les features"}
-            
-            # Créer les séquences
-            X, y = self.create_sequences(features)
-            if X is None:
-                return {"error": "Pas assez de données"}
-            
-            # Prédictions
-            predictions = self.predict(data)
-            if "error" in predictions:
-                return predictions
-            
-            hist_preds = predictions["historical_predictions"]
-            
-            # Métriques de performance
-            mse = mean_squared_error(y, hist_preds)
-            rmse = np.sqrt(mse)
-            mae = mean_absolute_error(y, hist_preds)
-            
-            # Corrélation
-            correlation = np.corrcoef(y, hist_preds)[0, 1] if len(y) > 1 else 0.0
-            
-            # Précision de direction (pour les prix)
-            if len(y) > 1:
-                y_direction = np.diff(y) > 0
-                pred_direction = np.diff(hist_preds) > 0
-                direction_accuracy = np.mean(y_direction == pred_direction)
-            else:
-                direction_accuracy = 0.0
-            
-            return {
-                "mse": mse,
-                "rmse": rmse,
-                "mae": mae,
-                "correlation": correlation,
-                "direction_accuracy": direction_accuracy,
-                "total_predictions": len(hist_preds)
-            }
-            
-        except Exception as e:
-            logger.error(f"❌ Erreur évaluation: {e}")
-            return {"error": str(e)}
 
-class PredictionEngine:
-    """Moteur de prédiction unifié pour Sentinel2"""
-    
-    def __init__(self):
-        """Initialise le moteur de prédiction"""
-        self.predictors = {}  # {ticker: LSTMPredictor}
-        self.is_initialized = False
-        
-        logger.info("🔮 Moteur de prédiction initialisé")
-    
-    def initialize_predictor(self, ticker: str) -> bool:
-        """Initialise un prédicteur pour un ticker"""
-        try:
-            predictor = LSTMPredictor(ticker)
-            success = predictor.load_model()
-            
-            if success:
-                self.predictors[ticker] = predictor
-                logger.info(f"✅ Prédicteur {ticker} initialisé")
-                return True
-            else:
-                logger.error(f"❌ Échec initialisation prédicteur {ticker}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"❌ Erreur initialisation {ticker}: {e}")
-            return False
-    
-    def predict(self, ticker: str, data: pd.DataFrame, horizon: int = 1) -> Dict[str, Any]:
-        """Fait des prédictions pour un ticker"""
-        if ticker not in self.predictors:
-            if not self.initialize_predictor(ticker):
-                return {"error": f"Impossible d'initialiser le prédicteur {ticker}"}
-        
-        predictor = self.predictors[ticker]
-        return predictor.predict(data, horizon)
-    
-    def evaluate(self, ticker: str, data: pd.DataFrame) -> Dict[str, Any]:
-        """Évalue la performance d'un prédicteur"""
-        if ticker not in self.predictors:
-            if not self.initialize_predictor(ticker):
-                return {"error": f"Impossible d'initialiser le prédicteur {ticker}"}
-        
-        predictor = self.predictors[ticker]
-        return predictor.evaluate_performance(data)
-    
-    def get_available_tickers(self) -> List[str]:
-        """Retourne les tickers disponibles"""
-        return list(self.predictors.keys())
-    
-    def is_ticker_ready(self, ticker: str) -> bool:
-        """Vérifie si un ticker est prêt pour les prédictions"""
-        return ticker in self.predictors and self.predictors[ticker].is_loaded
+# Alias pour la compatibilité
+LSTMPredictor = PricePredictor

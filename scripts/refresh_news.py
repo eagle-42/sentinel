@@ -45,7 +45,16 @@ class NewsRefresher:
         # Mots-clés pour la détection de tickers
         self.ticker_keywords = {
             'NVDA': ['nvidia', 'nvdia', 'gpu', 'ai', 'artificial intelligence', 'cuda', 'tensor'],
-            'SPY': ['spy', 's&p', 's&p 500', 'sp500', 'sp-500', 'etf', 'index', 'market']
+            'SPY': [
+                'spy', 's&p', 's&p 500', 'sp500', 'sp-500', 's&p500', 's&p-500',
+                'etf', 'index', 'market', 'stock market', 'equity market', 'wall street',
+                'dow jones', 'nasdaq', 'broad market', 'market index', 'us market',
+                'american market', 'stock index', 'market benchmark', 'market performance',
+                'market sentiment', 'market outlook', 'market analysis', 'market trends',
+                'market volatility', 'market rally', 'market decline', 'market correction',
+                'bull market', 'bear market', 'market cap', 'market capitalization',
+                'sector performance', 'market sector', 'financial market', 'securities market'
+            ]
         }
         
         # Initialiser les analyseurs

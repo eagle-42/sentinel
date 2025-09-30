@@ -69,7 +69,7 @@ def show_analysis_page():
         }
     
     # Chargement des données SANS cache pour permettre le filtrage réactif
-    def load_ticker_data(ticker: str):
+    def load_ticker_data(ticker: str, period: str = "7 derniers jours"):
         """Charge les données d'un ticker sans cache pour réactivité"""
         services = init_services()
         
@@ -77,19 +77,24 @@ def show_analysis_page():
         if not services['data_service']:
             return pd.DataFrame()  # Retourner un DataFrame vide si services arrêtés
         
-        # Pour l'analyse, utiliser TOUJOURS les données historiques qui ont plus de données
-        # Les données 15min sont limitées à quelques jours seulement
-        historical_data = services['data_service'].load_data(ticker)
+        # Déterminer si on doit utiliser les données historiques
+        use_historical = period in ["1 mois", "1 an", "Total"]
         
-        # Normaliser les colonnes en minuscules
-        if not historical_data.empty:
-            historical_data = normalize_columns(historical_data)
+        # Charger les données (historiques pour les périodes longues)
+        data = services['data_service'].load_data(ticker, use_historical=use_historical)
+        
+        # Convertir l'index DATE en colonne date pour la normalisation
+        if not data.empty:
+            # Reset l'index pour avoir DATE comme colonne
+            data = data.reset_index()
+            # Normaliser les colonnes en minuscules
+            data = normalize_columns(data)
             # Conversion des dates
-            historical_data['date'] = pd.to_datetime(historical_data['date'], utc=True)
+            data['date'] = pd.to_datetime(data['date'], utc=True)
             # Tri par date
-            historical_data = historical_data.sort_values('date').reset_index(drop=True)
+            data = data.sort_values('date').reset_index(drop=True)
         
-        return historical_data
+        return data
     
     # Fonction pour filtrer les données par période (sans cache pour réactivité)
     def filter_data_by_period(data: pd.DataFrame, period: str) -> pd.DataFrame:
@@ -97,22 +102,31 @@ def show_analysis_page():
         if data.empty:
             return data
         
-        # Utiliser la DERNIÈRE DATE DISPONIBLE dans les données comme référence
-        # Pas la date actuelle qui peut être après les données disponibles
-        last_date = data['date'].max()
+        # Utiliser la date actuelle comme référence pour les filtres
+        from datetime import datetime
+        current_date = pd.Timestamp.now(tz='UTC')
         
         if period == "7 derniers jours":
-            start_date = last_date - pd.Timedelta(days=7)
+            start_date = current_date - pd.Timedelta(days=7)
         elif period == "1 mois":
-            start_date = last_date - pd.Timedelta(days=30)
+            start_date = current_date - pd.Timedelta(days=30)
         elif period == "1 an":
-            start_date = last_date - pd.Timedelta(days=365)
+            start_date = current_date - pd.Timedelta(days=365)
         else:  # Total
             return data
         
         # Filtrer les données
         if 'date' in data.columns:
-            return data[data['date'] >= start_date].copy()
+            # S'assurer que les dates sont en UTC pour la comparaison
+            data_copy = data.copy()
+            if data_copy['date'].dt.tz is None:
+                data_copy['date'] = data_copy['date'].dt.tz_localize('UTC')
+            elif data_copy['date'].dt.tz != 'UTC':
+                data_copy['date'] = data_copy['date'].dt.tz_convert('UTC')
+            
+            filtered_data = data_copy[data_copy['date'] >= start_date].copy()
+            
+            return filtered_data
         else:
             return data
     
@@ -208,7 +222,7 @@ def show_analysis_page():
     
     # Chargement des données
     with st.spinner(f"Chargement des données {ticker}..."):
-        df = load_ticker_data(ticker)
+        df = load_ticker_data(ticker, period)
         
         if df.empty:
             st.error(f"❌ Aucune donnée disponible pour {ticker}")
@@ -221,6 +235,17 @@ def show_analysis_page():
         if filtered_df.empty:
             st.error(f"❌ Aucune donnée pour la période {period}")
             return
+        
+        # Forcer la mise à jour des graphiques en effaçant le cache
+        if f"last_period_{ticker}" in st.session_state:
+            if st.session_state[f"last_period_{ticker}"] != period:
+                # Période changée, effacer le cache des graphiques
+                for key in list(st.session_state.keys()):
+                    if key.startswith(f"chart_{ticker}_"):
+                        del st.session_state[key]
+        
+        # Mémoriser la période actuelle
+        st.session_state[f"last_period_{ticker}"] = period
     
     # Indicateur de mise à jour avec debug
     st.success(f"✅ Données historiques chargées : {len(filtered_df)} points pour {period}")
@@ -258,16 +283,28 @@ def show_analysis_page():
         )
     
     # Création du graphique selon le type d'analyse
-    st.header(f"📊 {analysis_type} - {ticker}")
+    col_header, col_refresh = st.columns([4, 1])
     
-    # Utiliser la période comme clé pour forcer la mise à jour
-    chart_key = f"{ticker}_{analysis_type}_{period}_{len(filtered_df)}"
+    with col_header:
+        st.header(f"📊 {analysis_type} - {ticker}")
+    
+    with col_refresh:
+        if st.button("🔄 Rafraîchir", key=f"refresh_{ticker}_{analysis_type}"):
+            # Effacer le cache des graphiques
+            for key in list(st.session_state.keys()):
+                if key.startswith(f"chart_{ticker}_"):
+                    del st.session_state[key]
+            st.rerun()
+    
+    # Utiliser la période et les données comme clé pour forcer la mise à jour
+    import time
+    chart_key = f"{ticker}_{analysis_type}_{period}_{len(filtered_df)}_{int(time.time())}"
     
     if analysis_type == "Prix":
         # Graphique de prix avec moyennes mobiles
         if chart_service:
             chart = chart_service.create_price_chart(filtered_df, ticker, period)
-            st.plotly_chart(chart, use_container_width=True, key=f"price_chart_{chart_key}")
+            st.plotly_chart(chart, key=f"price_chart_{chart_key}", config={'displayModeBar': False})
         else:
             st.info("🔧 Service de graphiques non disponible - Services arrêtés")
         
@@ -295,7 +332,7 @@ def show_analysis_page():
         # Graphique de volume avec volatilité
         if chart_service:
             chart = chart_service.create_volume_chart(filtered_df, ticker, period)
-            st.plotly_chart(chart, use_container_width=True, key=f"volume_chart_{chart_key}")
+            st.plotly_chart(chart, key=f"volume_chart_{chart_key}", config={'displayModeBar': False})
         else:
             st.info("🔧 Service de graphiques non disponible - Services arrêtés")
         
@@ -322,7 +359,7 @@ def show_analysis_page():
         # Graphique de sentiment
         if chart_service:
             chart = chart_service.create_sentiment_chart(filtered_df, ticker, period)
-            st.plotly_chart(chart, use_container_width=True, key=f"sentiment_chart_{chart_key}")
+            st.plotly_chart(chart, key=f"sentiment_chart_{chart_key}", config={'displayModeBar': False})
         else:
             st.info("🔧 Service de graphiques non disponible - Services arrêtés")
         
@@ -357,7 +394,7 @@ def show_analysis_page():
             with st.spinner("Génération des prédictions LSTM..."):
                 prediction_data = prediction_service.predict(filtered_df, horizon=20)
                 chart = chart_service.create_prediction_chart(filtered_df, prediction_data, ticker, period)
-                st.plotly_chart(chart, use_container_width=True, key=f"prediction_chart_{chart_key}")
+                st.plotly_chart(chart, key=f"prediction_chart_{chart_key}", config={'displayModeBar': False})
             
             # Métriques de prédiction
             col1, col2 = st.columns(2)
