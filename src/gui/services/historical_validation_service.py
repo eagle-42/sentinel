@@ -32,65 +32,39 @@ class HistoricalValidationService:
         logger.info("🔍 Service de validation historique initialisé")
     
     def load_historical_decisions(self) -> pd.DataFrame:
-        """Charge les décisions historiques depuis les fichiers de validation"""
+        """Charge les VRAIES décisions historiques depuis les logs de trading"""
         try:
-            # Essayer d'abord les fichiers de validation existants
-            validation_files = list(self.validation_path.glob("*_validation_stats.json"))
+            # Charger les vraies décisions depuis le fichier de trading
+            trading_decisions_file = self.data_path / "trading" / "decisions_log" / "trading_decisions.json"
             
-            # Utiliser directement les vraies données de prix du 29 septembre
-            price_data = self.load_historical_prices('SPY')
-            
-            if price_data.empty:
-                logger.warning("Aucune donnée de prix disponible")
+            if not trading_decisions_file.exists():
+                logger.warning("❌ Aucun fichier de décisions de trading trouvé")
                 return pd.DataFrame()
             
-            # Filtrer pour le 29 septembre uniquement
-            if 'ts_utc' in price_data.columns:
-                price_data['timestamp'] = pd.to_datetime(price_data['ts_utc'])
-            price_data['date'] = price_data['timestamp'].dt.date
-            sept_29_data = price_data[price_data['date'] == datetime(2025, 9, 29).date()]
+            # Charger le JSON
+            with open(trading_decisions_file, 'r') as f:
+                decisions_data = json.load(f)
             
-            if sept_29_data.empty:
-                logger.warning("Aucune donnée du 29 septembre trouvée")
+            if not decisions_data:
+                logger.warning("❌ Aucune décision dans le fichier")
                 return pd.DataFrame()
             
-            # Générer des décisions basées sur les mouvements de prix réels
-            decisions = []
-            for i in range(len(sept_29_data) - 1):
-                current_price = sept_29_data.iloc[i]['close']
-                future_price = sept_29_data.iloc[i + 1]['close']
-                price_change = (future_price - current_price) / current_price * 100
-                
-                # Décision basée sur le mouvement de prix réel
-                if price_change > 0.3:
-                    decision = 'BUY'
-                    fusion_score = min(0.8, price_change / 100)
-                elif price_change < -0.3:
-                    decision = 'SELL'
-                    fusion_score = max(-0.8, price_change / 100)
-                else:
-                    decision = 'HOLD'
-                    fusion_score = price_change / 100
-                
-                decisions.append({
-                    'timestamp': sept_29_data.iloc[i]['timestamp'],
-                    'ticker': 'SPY',
-                    'decision': decision,
-                    'confidence': min(0.9, abs(price_change) / 2),  # Confiance basée sur l'amplitude
-                    'fusion_score': fusion_score
-                })
-            
-            df = pd.DataFrame(decisions)
+            # Convertir en DataFrame
+            df = pd.DataFrame(decisions_data)
             
             # Convertir les timestamps
             if 'timestamp' in df.columns:
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
             
-            logger.info(f"✅ {len(df)} décisions générées basées sur les données réelles du 29/09")
+            # Ajouter les colonnes manquantes pour la compatibilité
+            if 'fusion_score' not in df.columns:
+                df['fusion_score'] = df.get('fused_signal', 0)
+            
+            logger.info(f"✅ {len(df)} VRAIES décisions chargées depuis le trading pipeline")
             return df
             
         except Exception as e:
-            logger.error(f"❌ Erreur chargement décisions: {e}")
+            logger.error(f"❌ Erreur chargement vraies décisions: {e}")
             return pd.DataFrame()
     
     def load_historical_prices(self, ticker: str) -> pd.DataFrame:
@@ -125,14 +99,14 @@ class HistoricalValidationService:
     
     def validate_historical_decisions(self, ticker: str, days: int = 7) -> Dict[str, Any]:
         """
-        Valide les décisions historiques contre l'évolution réelle des prix
+        Valide les VRAIES décisions historiques contre l'évolution réelle des prix
         
         Args:
-            ticker: Symbole de l'action
-            days: Nombre de jours à analyser
+            ticker: Symbole de l'action (filtré depuis les vraies décisions)
+            days: Nombre de jours à analyser (ignoré, utilise toutes les décisions)
             
         Returns:
-            Dict contenant les résultats de validation
+            Dict contenant les résultats de validation des vraies décisions
         """
         try:
             # Charger les données

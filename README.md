@@ -46,7 +46,25 @@ cp env.example .env
 
 ### **2. Démarrage des Services**
 
-#### **Option A: Script de gestion complet (Recommandé)**
+#### **🚨 IMPORTANT - MODE PRODUCTION TEMPS RÉEL**
+
+**Pour un système de trading en temps réel (obligatoire pour collecter de vraies données) :**
+
+```bash
+# EMPÊCHER LA VEILLE (CRITIQUE!)
+caffeinate -d ./scripts/sentinel2.sh prod
+
+# OU en arrière-plan permanent
+nohup caffeinate -d ./scripts/sentinel2.sh prod > logs/sentinel2.log 2>&1 &
+```
+
+**⚠️ ATTENTION :** 
+- **SANS `caffeinate`** : Le système s'arrête en veille = AUCUNE DONNÉE COLLECTÉE
+- **AVEC `caffeinate`** : Collecte continue 24h/7j = VRAIES DONNÉES DE TRADING
+- **Décisions prises** : Toutes les 15 minutes pendant les heures de marché
+- **Fichier de sortie** : `data/trading/decisions_log/trading_decisions.json`
+
+#### **Option A: Script de gestion complet (Mode développement)**
 ```bash
 # Mode production (avec Ollama)
 ./scripts/sentinel2.sh prod

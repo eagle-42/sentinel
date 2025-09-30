@@ -12,7 +12,7 @@ class SentinelConstants:
     # =============================================================================
     # TICKERS ET MARCHÉS
     # =============================================================================
-    TICKERS: List[str] = ["SPY", "NVDA"]
+    TICKERS: List[str] = ["SPY"]
     TICKER_NAMES: Dict[str, str] = {
         "SPY": "S&P 500 ETF",
         "NVDA": "NVIDIA Corporation"

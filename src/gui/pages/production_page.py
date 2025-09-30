@@ -852,7 +852,7 @@ def _get_prediction_signal(services, ticker):
 
 def show_decisions_table(ticker):
     """Affiche le tableau des décisions récentes"""
-    st.header("📋 Décisions Récentes - Synthèse Clean")
+    st.header("📋 Décisions Récentes - Synthèse")
     
     try:
         # Récupérer les données de validation historique
@@ -923,22 +923,11 @@ def show_decisions_table(ticker):
                 # Calculer le gain en dollars
                 gain_dollars = future_price - current_price
                 
-                # Déterminer le résultat
-                decision_type = decision.get('decision', 'N/A')
-                if decision_type == 'BUY':
-                    is_positive = price_change > 0
-                    result_text = "Positif" if is_positive else "Négatif"
-                elif decision_type == 'SELL':
-                    is_positive = price_change < 0
-                    result_text = "Positif" if is_positive else "Négatif"
-                else:  # HOLD - Logique corrigée
-                    # Pour HOLD : positif seulement si le prix reste vraiment stable (±0.2%)
-                    # Toute variation significative est une perte d'opportunité
-                    if abs(price_change) <= 0.2:  # Prix vraiment stable → Positif
-                        is_positive = True
-                    else:  # Toute variation > 0.2% → Négatif (perte d'opportunité)
-                        is_positive = False
-                    result_text = "Positif" if is_positive else "Négatif"
+                # Déterminer le résultat basé sur la comparaison des prix
+                # Si prix -15min < prix +15min → Positif (hausse)
+                # Si prix -15min > prix +15min → Négatif (baisse)
+                is_positive = current_price < future_price
+                result_text = "Positif" if is_positive else "Négatif"
                 
                 table_data.append({
                     'N°': i + 1,
@@ -946,7 +935,7 @@ def show_decisions_table(ticker):
                     'Heure': heure_str,
                     'Prix -15min': f"${current_price:.2f}",
                     'Prix +15min': f"${future_price:.2f}",
-                    'Décision': decision_type,
+                    'Décision': decision.get('decision', 'N/A'),
                     'Résultat': result_text,
                     'Gain': f"${gain_dollars:+.2f}"
                 })
@@ -1031,21 +1020,11 @@ def show_decisions_table(ticker):
                             price_change = decision.get('price_change', 0)
                             gain_dollars = future_price - current_price
                             
-                            decision_type = decision.get('decision', 'N/A')
-                            if decision_type == 'BUY':
-                                is_positive = price_change > 0
-                                result_text = "Positif" if is_positive else "Négatif"
-                            elif decision_type == 'SELL':
-                                is_positive = price_change < 0
-                                result_text = "Positif" if is_positive else "Négatif"
-                            else:  # HOLD - Logique corrigée
-                                # Pour HOLD : positif seulement si le prix reste vraiment stable (±0.2%)
-                                # Toute variation significative est une perte d'opportunité
-                                if abs(price_change) <= 0.2:  # Prix vraiment stable → Positif
-                                    is_positive = True
-                                else:  # Toute variation > 0.2% → Négatif (perte d'opportunité)
-                                    is_positive = False
-                                result_text = "Positif" if is_positive else "Négatif"
+                            # Déterminer le résultat basé sur la comparaison des prix
+                            # Si prix -15min < prix +15min → Positif (hausse)
+                            # Si prix -15min > prix +15min → Négatif (baisse)
+                            is_positive = current_price < future_price
+                            result_text = "Positif" if is_positive else "Négatif"
                             
                             full_table_data.append({
                                 'N°': i + 1,
@@ -1053,7 +1032,7 @@ def show_decisions_table(ticker):
                                 'Heure': heure_str,
                                 'Prix -15min': f"${current_price:.2f}",
                                 'Prix +15min': f"${future_price:.2f}",
-                                'Décision': decision_type,
+                                'Décision': decision.get('decision', 'N/A'),
                                 'Résultat': result_text,
                                 'Gain': f"${gain_dollars:+.2f}"
                             })
