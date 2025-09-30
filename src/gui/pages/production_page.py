@@ -1250,8 +1250,10 @@ def _get_next_decision_time():
             else:
                 next_decision = now_est.replace(hour=current_hour, minute=next_minute, second=0, microsecond=0)
         
-        # Formater l'heure pour l'affichage
-        return next_decision.strftime("%H:%M")
+        # Convertir en heure de Paris pour l'affichage
+        paris_tz = pytz.timezone('Europe/Paris')
+        paris_time = next_decision.astimezone(paris_tz)
+        return paris_time.strftime("%H:%M")
         
     except ImportError:
         # Fallback si pytz n'est pas disponible
@@ -1290,5 +1292,9 @@ def _get_next_decision_time():
             else:
                 next_decision = now_est.replace(hour=current_hour, minute=next_minute, second=0, microsecond=0)
         
-        # Formater l'heure pour l'affichage
-        return next_decision.strftime("%H:%M")
+        # Convertir en heure de Paris pour l'affichage (fallback)
+        # Calculer le décalage horaire (EDT = UTC-4, Paris = UTC+2 en été)
+        paris_offset = 6  # 6 heures de décalage entre EDT et Paris en été
+        paris_hour = (next_decision.hour + paris_offset) % 24
+        paris_time = next_decision.replace(hour=paris_hour)
+        return paris_time.strftime("%H:%M")
