@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 import numpy as np
+import torch
 from loguru import logger
 from typing import Dict, List, Optional, Any, Tuple
 import json
@@ -188,15 +189,11 @@ class TradingPipeline:
                 logger.warning(f"⚠️ Impossible de créer les séquences pour {ticker}")
                 return None
             
-            # Faire la prédiction
-            prediction = predictor.predict(X[-1:])  # Dernière séquence
-            
-            if prediction is None:
-                logger.warning(f"⚠️ Prédiction échouée pour {ticker}")
-                return None
-            
-            # Convertir en signal de trading
-            prediction_signal = float(prediction[0]) if len(prediction) > 0 else 0.0
+            # Faire la prédiction directe
+            with torch.no_grad():
+                sequence = torch.FloatTensor(X[-1:]).to(predictor.device)
+                pred = predictor.model(sequence)
+                prediction_signal = float(pred.cpu().numpy()[0, 0])
             
             logger.debug(f"🔮 Prédiction LSTM {ticker}: {prediction_signal:.3f}")
             return prediction_signal

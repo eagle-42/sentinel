@@ -204,6 +204,8 @@ class SentinelConstants:
             return cls.NEWS_DIR / f"{ticker.lower()}_news.parquet"
         elif data_type == "sentiment":
             return cls.SENTIMENT_DIR / f"{ticker.lower()}_sentiment.parquet"
+        elif data_type == "features":
+            return cls.FEATURES_DIR / f"{ticker.lower()}_features.parquet"
         elif data_type == "models":
             return cls.MODELS_DIR / f"{ticker.lower()}_model.pth"
         else:

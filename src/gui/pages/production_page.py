@@ -662,16 +662,34 @@ def show_production_page():
         article_count = len(articles) if articles else 0
         data = services['data_service'].load_data(ticker)
         
-        # Corriger l'erreur strftime
-        if not data.empty and hasattr(data.index[-1], 'strftime'):
-            last_update = data.index[-1].strftime('%H:%M')
-        elif not data.empty:
-            # Si l'index n'a pas strftime, utiliser la dernière date disponible
-            try:
-                last_update = data.index[-1].strftime('%H:%M')
-            except:
+        # Utiliser l'heure fixe de la dernière décision au lieu de l'heure actuelle
+        try:
+            # Charger les décisions récentes pour avoir l'heure fixe
+            decisions_path = Path("data/trading/decisions_log/trading_decisions.json")
+            if decisions_path.exists():
+                import json
+                with open(decisions_path, 'r') as f:
+                    decisions = json.load(f)
+                if decisions:
+                    # Utiliser l'heure de la dernière décision
+                    last_decision = decisions[-1]
+                    timestamp_str = last_decision.get('timestamp', '')
+                    if timestamp_str:
+                        from datetime import datetime
+                        import pytz
+                        # Parser le timestamp
+                        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        # Convertir en heure de Paris
+                        paris_tz = pytz.timezone('Europe/Paris')
+                        paris_time = dt.astimezone(paris_tz)
+                        last_update = paris_time.strftime('%H:%M')
+                    else:
+                        last_update = 'N/A'
+                else:
+                    last_update = 'N/A'
+            else:
                 last_update = 'N/A'
-        else:
+        except Exception as e:
             last_update = 'N/A'
         
         # Construire la ligne de statut
