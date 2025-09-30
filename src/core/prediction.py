@@ -186,7 +186,7 @@ class PricePredictor:
                 for i in range(len(X)):
                     sequence = torch.FloatTensor(X[i:i+1]).to(self.device)
                     pred = self.model(sequence)
-                    pred_value = pred.cpu().numpy()[0, 0]
+                    pred_value = pred.detach().cpu().numpy()[0, 0]
                     historical_predictions.append(pred_value)
             
             # Prédictions futures
@@ -205,7 +205,7 @@ class PricePredictor:
                             break
                         
                         pred = self.model(last_sequence)
-                        pred_value = pred.cpu().numpy()[0, 0]
+                        pred_value = pred.detach().cpu().numpy()[0, 0]
                         future_predictions.append(pred_value)
                     
                     # Mettre à jour la séquence pour la prochaine prédiction
@@ -293,7 +293,7 @@ class PricePredictor:
                 for i in range(len(X)):
                     sequence = torch.FloatTensor(X[i:i+1]).to(self.device)
                     pred = self.model(sequence)
-                    pred_value = pred.cpu().numpy()[0, 0]
+                    pred_value = pred.detach().cpu().numpy()[0, 0]
                     historical_predictions.append(pred_value)
             
             # Prédictions futures
@@ -306,7 +306,7 @@ class PricePredictor:
                 
                 for i in range(horizon):
                     pred = self.model(last_sequence)
-                    pred_value = pred.cpu().numpy()[0, 0]
+                    pred_value = pred.detach().cpu().numpy()[0, 0]
                     future_predictions.append(pred_value)
                     
                     # Mettre à jour la séquence pour la prochaine prédiction

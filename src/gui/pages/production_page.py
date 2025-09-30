@@ -853,8 +853,7 @@ def _get_prediction_signal(services, ticker):
         if ticker != "SPY":
             return 0.5  # Neutre pour NVDA
         
-        data = services['data_service'].load_data(ticker)
-        prediction = services['prediction_service'].predict(data, horizon=20)
+        prediction = services['prediction_service'].predict_with_features(ticker, horizon=20)
         
         if prediction and 'predictions' in prediction and prediction['predictions']:
             # Utiliser la première prédiction
