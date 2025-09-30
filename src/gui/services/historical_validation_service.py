@@ -178,8 +178,8 @@ class HistoricalValidationService:
                 
                 current_price = closest_price_data['close']
                 
-                # Simuler l'évolution du prix (dans un vrai système, on attendrait 15min)
-                future_price = self._simulate_future_price(prices_df, closest_price_data, timestamp)
+                # Récupérer le prix 15 minutes plus tard depuis les vraies données
+                future_price = self._get_future_price(prices_df, closest_price_data, timestamp)
                 
                 # Calculer le changement de prix
                 price_change = (future_price - current_price) / current_price * 100
@@ -259,24 +259,31 @@ class HistoricalValidationService:
                 "summary_stats": {}
             }
     
-    def _simulate_future_price(self, prices_df: pd.DataFrame, current_price_data: pd.Series, timestamp: datetime) -> float:
-        """Simule l'évolution du prix futur basée sur l'historique"""
+    def _get_future_price(self, prices_df: pd.DataFrame, current_price_data: pd.Series, timestamp: datetime) -> float:
+        """Récupère le prix 15 minutes plus tard depuis les vraies données"""
         try:
-            # Trouver l'index du prix actuel
+            current_price = current_price_data['close']
             current_idx = current_price_data.name
             
-            # Prendre le prix 15min plus tard (ou le suivant disponible)
-            future_idx = min(current_idx + 1, len(prices_df) - 1)
-            future_price = prices_df.iloc[future_idx]['close']
+            # Chercher le prix 15 minutes plus tard dans les vraies données
+            # Les données sont en 15min, donc +1 = +15min
+            future_idx = current_idx + 1
             
-            return future_price
+            if future_idx < len(prices_df):
+                # Prix réel 15min plus tard
+                future_price = prices_df.iloc[future_idx]['close']
+                logger.info(f"📊 Prix réel: ${current_price:.2f} → ${future_price:.2f} (15min plus tard)")
+                return future_price
+            else:
+                # Pas de données futures, utiliser le dernier prix disponible
+                future_price = prices_df.iloc[-1]['close']
+                logger.info(f"📊 Prix final: ${current_price:.2f} → ${future_price:.2f} (dernière donnée)")
+                return future_price
             
         except Exception as e:
-            # Fallback: simulation simple
-            current_price = current_price_data['close']
-            volatility = 0.01  # 1% de volatilité
-            change = np.random.normal(0, volatility)
-            return current_price * (1 + change)
+            logger.error(f"❌ Erreur récupération prix futur: {e}")
+            # Fallback: retourner le prix actuel (pas de simulation)
+            return current_price_data['close']
     
     def _evaluate_decision_correctness(self, decision: str, price_change: float) -> bool:
         """Évalue si une décision était correcte basée sur l'évolution du prix"""

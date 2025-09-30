@@ -99,9 +99,8 @@ class DecisionValidationService:
                     "is_correct": None
                 }
             
-            # Simuler l'évolution du prix (dans un vrai système, on attendrait 15min)
-            # Ici on utilise des données historiques pour la démonstration
-            future_price = self._simulate_future_price(price_data, current_price, timestamp)
+            # Récupérer le prix 15 minutes plus tard depuis les vraies données
+            future_price = self._get_future_price(price_data, current_price, timestamp)
             
             # Calculer le changement de prix
             price_change = (future_price - current_price) / current_price * 100
@@ -173,41 +172,37 @@ class DecisionValidationService:
             logger.error(f"❌ Erreur chargement données prix: {e}")
             return pd.DataFrame()
     
-    def _simulate_future_price(self, price_data: pd.DataFrame, current_price: float, 
-                              timestamp: datetime) -> float:
+    def _get_future_price(self, price_data: pd.DataFrame, current_price: float, 
+                          timestamp: datetime) -> float:
         """
-        Simule l'évolution du prix futur
-        En production, ceci attendrait 15min et utiliserait les vrais prix
+        Récupère le prix 15 minutes plus tard depuis les vraies données
         """
         try:
-            # Pour la démonstration, on simule une évolution basée sur l'historique
             if price_data.empty:
-                # Si pas de données, simuler une évolution aléatoire
-                volatility = 0.02  # 2% de volatilité
-                change = np.random.normal(0, volatility)
-                return current_price * (1 + change)
+                logger.warning("⚠️ Pas de données de prix disponibles")
+                return current_price
             
-            # Utiliser l'historique pour simuler une évolution réaliste
-            recent_data = price_data.tail(100)  # 100 derniers points
+            # Trouver l'index du prix le plus proche du timestamp
+            price_data['time_diff'] = abs((price_data['ts_utc'] - timestamp).dt.total_seconds())
+            closest_idx = price_data['time_diff'].idxmin()
+            current_idx = closest_idx
             
-            if len(recent_data) < 10:
-                # Pas assez de données, simulation simple
-                volatility = 0.01
-                change = np.random.normal(0, volatility)
-                return current_price * (1 + change)
+            # Récupérer le prix 15 minutes plus tard (données en 15min)
+            future_idx = current_idx + 1
             
-            # Calculer la volatilité historique
-            returns = recent_data['close'].pct_change().dropna()
-            volatility = returns.std()
-            
-            # Simuler une évolution basée sur la volatilité historique
-            change = np.random.normal(0, volatility)
-            return current_price * (1 + change)
+            if future_idx < len(price_data):
+                future_price = price_data.iloc[future_idx]['close']
+                logger.info(f"📊 Prix réel: ${current_price:.2f} → ${future_price:.2f} (15min plus tard)")
+                return future_price
+            else:
+                # Pas de données futures, utiliser le dernier prix
+                future_price = price_data.iloc[-1]['close']
+                logger.info(f"📊 Prix final: ${current_price:.2f} → ${future_price:.2f} (dernière donnée)")
+                return future_price
             
         except Exception as e:
-            logger.error(f"❌ Erreur simulation prix futur: {e}")
-            # Fallback: simulation simple
-            return current_price * (1 + np.random.normal(0, 0.01))
+            logger.error(f"❌ Erreur récupération prix futur: {e}")
+            return current_price
     
     def _evaluate_decision_correctness(self, decision: str, price_change: float) -> bool:
         """Évalue si une décision était correcte basée sur l'évolution du prix"""
