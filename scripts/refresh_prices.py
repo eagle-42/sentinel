@@ -13,6 +13,10 @@ import yfinance as yf
 import requests
 from loguru import logger
 from typing import Dict, List, Optional, Any
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
 
 # Ajouter src au path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -32,38 +36,55 @@ class PriceRefresher:
         self.yahoo_fallback = True
         
     def get_yahoo_prices(self, ticker: str, period: str = "7d", interval: str = "15m") -> pd.DataFrame:
-        """Récupère les données de prix depuis Yahoo Finance"""
-        try:
-            logger.info(f"📈 Récupération {ticker} depuis Yahoo Finance ({period}, {interval})")
-            
-            ticker_obj = yf.Ticker(ticker)
-            data = ticker_obj.history(period=period, interval=interval)
-            
-            if data.empty:
-                logger.warning(f"⚠️ Aucune donnée Yahoo pour {ticker}")
-                return pd.DataFrame()
-            
-            # Normaliser les données
-            data = data.reset_index()
-            data['ticker'] = ticker
-            data = data.rename(columns={'Datetime': 'ts_utc'})
-            
-            # S'assurer que la date est en UTC
-            if data['ts_utc'].dt.tz is None:
-                data['ts_utc'] = data['ts_utc'].dt.tz_localize('UTC')
-            else:
-                data['ts_utc'] = data['ts_utc'].dt.tz_convert('UTC')
-            
-            # Sélectionner les colonnes finales
-            data = data[['ticker', 'ts_utc', 'Open', 'High', 'Low', 'Close', 'Volume']]
-            data.columns = ['ticker', 'ts_utc', 'open', 'high', 'low', 'close', 'volume']
-            
-            logger.info(f"✅ {ticker}: {len(data)} barres récupérées depuis Yahoo")
-            return data
-            
-        except Exception as e:
-            logger.error(f"❌ Erreur Yahoo pour {ticker}: {e}")
-            return pd.DataFrame()
+        """Récupère les données de prix depuis Yahoo Finance avec retry et backoff"""
+        import time
+        import random
+        
+        max_retries = 3
+        base_delay = 5  # secondes
+        
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    logger.info(f"🔄 Tentative {attempt + 1}/{max_retries} pour {ticker} (attente {delay:.1f}s)")
+                    time.sleep(delay)
+                
+                logger.info(f"📈 Récupération {ticker} depuis Yahoo Finance ({period}, {interval})")
+                
+                ticker_obj = yf.Ticker(ticker)
+                data = ticker_obj.history(period=period, interval=interval)
+                
+                if data.empty:
+                    logger.warning(f"⚠️ Aucune donnée Yahoo pour {ticker} (tentative {attempt + 1})")
+                    continue
+                
+                # Normaliser les données
+                data = data.reset_index()
+                data['ticker'] = ticker
+                data = data.rename(columns={'Datetime': 'ts_utc'})
+                
+                # S'assurer que la date est en UTC
+                if data['ts_utc'].dt.tz is None:
+                    data['ts_utc'] = data['ts_utc'].dt.tz_localize('UTC')
+                else:
+                    data['ts_utc'] = data['ts_utc'].dt.tz_convert('UTC')
+                
+                # Sélectionner les colonnes finales
+                data = data[['ticker', 'ts_utc', 'Open', 'High', 'Low', 'Close', 'Volume']]
+                data.columns = ['ticker', 'ts_utc', 'open', 'high', 'low', 'close', 'volume']
+                
+                logger.info(f"✅ {ticker}: {len(data)} barres récupérées depuis Yahoo")
+                return data
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur Yahoo pour {ticker} (tentative {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"❌ Échec définitif Yahoo pour {ticker} après {max_retries} tentatives")
+                    return pd.DataFrame()
+                continue
+        
+        return pd.DataFrame()
     
     def get_polygon_prices(self, ticker: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         """Récupère les données de prix depuis Polygon API"""
@@ -90,8 +111,8 @@ class PriceRefresher:
             
             data = response.json()
             
-            if data.get('status') != 'OK' or not data.get('results'):
-                logger.warning(f"⚠️ Aucune donnée Polygon pour {ticker}")
+            if data.get('status') not in ['OK', 'DELAYED'] or not data.get('results'):
+                logger.warning(f"⚠️ Aucune donnée Polygon pour {ticker} (status: {data.get('status')})")
                 return pd.DataFrame()
             
             # Convertir les données

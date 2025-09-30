@@ -1,0 +1,4 @@
+La pondération des signaux est régie par le régime de marche, détecté à partir de la volatilité réalisée sigma (et d’un ratio de volume relativement à la moyenne récente). Trois zones sont considérées : calme sigma < 0,15, normal 0,15 < 0,25, et agité sigma ≥ 0,25, en régime calme, le signal de sentiment reçoit un poids relatif plus élevé, susceptible (là aussi) d’indiquer une tendance future, en régime agité son poids attribué est réduit tout en réduisant le bruit du signal de sentiment au profit du prêt prépondérante des signaux technique et LSTM. Les poids ne peuvent varier qu’à l’intérieur de bornes prédéfinies afin de ne pas engendrer d’instabilité des performances, puis ils sont renormalisés à chacune des mises à jour.
+
+
+en régime calme, le signal de sentiment reçoit un poids relatif plus élevé, 

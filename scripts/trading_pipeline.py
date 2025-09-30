@@ -22,7 +22,7 @@ from src.config import config
 from src.data.storage import DataStorage
 from src.core.fusion import AdaptiveFusion
 from src.core.sentiment import SentimentAnalyzer
-from src.core.prediction import LSTMPredictor, PredictionEngine
+from src.core.prediction import PricePredictor
 
 
 class TradingPipeline:
@@ -33,7 +33,7 @@ class TradingPipeline:
         self.tickers = CONSTANTS.TICKERS
         self.fusion = AdaptiveFusion()
         self.sentiment_analyzer = SentimentAnalyzer()
-        self.prediction_engine = PredictionEngine()
+        self.prediction_engine = PricePredictor()
         
         # Configuration de trading
         self.buy_threshold = CONSTANTS.BASE_BUY_THRESHOLD

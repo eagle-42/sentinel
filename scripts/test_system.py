@@ -50,7 +50,7 @@ class SystemTester:
             from src.config import config
             from src.core.fusion import AdaptiveFusion
             from src.core.sentiment import FinBertAnalyzer, SentimentAnalyzer
-            from src.core.prediction import LSTMPredictor, PredictionEngine
+            from src.core.prediction import PricePredictor
             from src.data.storage import DataStorage
             from src.data.crawler import DataCrawler
             
@@ -107,7 +107,7 @@ class SystemTester:
         try:
             from src.core.fusion import AdaptiveFusion
             from src.core.sentiment import FinBertAnalyzer, SentimentAnalyzer
-            from src.core.prediction import LSTMPredictor, PredictionEngine
+            from src.core.prediction import PricePredictor
             
             # Test AdaptiveFusion
             fusion = AdaptiveFusion()
@@ -121,12 +121,12 @@ class SystemTester:
             finbert = FinBertAnalyzer(mode="stub")
             assert finbert is not None
             
-            # Test LSTMPredictor
-            predictor = LSTMPredictor("SPY")
+            # Test PricePredictor
+            predictor = PricePredictor()
             assert predictor is not None
             
-            # Test PredictionEngine
-            engine = PredictionEngine()
+            # Test PricePredictor
+            engine = PricePredictor()
             assert engine is not None
             
             self.log_test("Modules core", True, "Tous les modules core fonctionnels")
