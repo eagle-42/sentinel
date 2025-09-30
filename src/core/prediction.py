@@ -79,22 +79,24 @@ class PricePredictor:
                 logger.error(f"❌ Modèle non trouvé: {model_path}")
                 return False
             
-            # Créer la classe FinancialLSTM dans __main__ pour la compatibilité
-            sys.modules['__main__'].FinancialLSTM = FinancialLSTM
-            # Alias pour l'ancien nom
-            sys.modules['__main__'].SimpleLSTM = FinancialLSTM
+            # Charger le modèle (désactiver weights_only pour permettre le chargement du scaler)
+            model_data = torch.load(model_path, map_location=self.device, weights_only=False)
             
-            # Charger le modèle
-            self.model = torch.load(model_path, map_location=self.device, weights_only=False)
-            self.model.to(self.device)
+            # Créer le modèle avec la taille d'entrée sauvegardée
+            input_size = model_data.get('input_size', len(model_data['feature_columns']))
+            self.model = FinancialLSTM(
+                input_size=input_size,
+                hidden_size=64,
+                num_layers=2,
+                output_size=1
+            ).to(self.device)
+            
+            # Charger les poids
+            self.model.load_state_dict(model_data['model_state_dict'])
+            self.scaler = model_data['scaler']
+            self.feature_columns = model_data['feature_columns']
+            self.sequence_length = model_data['sequence_length']
             self.model.eval()
-            
-            # Charger le scaler
-            scaler_path = model_path.parent / "scaler.pkl"
-            if scaler_path.exists():
-                import pickle
-                with open(scaler_path, 'rb') as f:
-                    self.scaler = pickle.load(f)
             
             self.is_loaded = True
             logger.info(f"✅ Modèle LSTM {self.ticker} chargé depuis {model_path}")
@@ -141,7 +143,7 @@ class PricePredictor:
             logger.error(f"❌ Erreur préparation features: {e}")
             return None
 
-    def create_sequences(self, features: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def create_sequences(self, features: np.ndarray, target_col_idx: int = 0) -> Tuple[np.ndarray, np.ndarray]:
         """Crée les séquences temporelles pour le LSTM"""
         if len(features) < self.sequence_length:
             logger.warning(f"⚠️ Pas assez de données: {len(features)} < {self.sequence_length}")
@@ -151,7 +153,8 @@ class PricePredictor:
         
         for i in range(self.sequence_length, len(features)):
             X.append(features[i-self.sequence_length:i])
-            y.append(features[i])  # Prédire la prochaine valeur
+            # Utiliser la colonne spécifiée comme target (par défaut la première)
+            y.append(features[i][target_col_idx])
         
         return np.array(X), np.array(y)
     
@@ -264,6 +267,11 @@ class PricePredictor:
                 logger.error("❌ Aucune colonne de feature technique trouvée")
                 return {"error": "Aucune colonne de feature technique trouvée"}
             
+            # Ajouter CLOSE si nécessaire (pour correspondre au modèle entraîné)
+            if 'CLOSE' in features_df.columns and 'CLOSE' not in feature_cols:
+                feature_cols.append('CLOSE')
+                logger.info("🎯 Ajout de CLOSE aux features pour la prédiction")
+            
             # Extraire les features
             features_data = features_df[feature_cols].values
             
@@ -332,6 +340,171 @@ class PricePredictor:
         except Exception as e:
             logger.error(f"❌ Erreur prédiction avec features techniques: {e}")
             return {"error": str(e)}
+    
+    def train(self, features_df: pd.DataFrame, epochs: int = 100, batch_size: int = 32, validation_split: float = 0.2) -> Dict[str, Any]:
+        """Entraîne le modèle LSTM avec les données de features"""
+        try:
+            logger.info(f"🚀 Début de l'entraînement LSTM pour {self.ticker}")
+            
+            # Préparer les features
+            feature_cols = [col for col in self.feature_columns if col in features_df.columns]
+            if not feature_cols:
+                logger.error("❌ Aucune colonne de feature technique trouvée")
+                return {"error": "Aucune colonne de feature technique trouvée"}
+            
+            # Extraire les features
+            features_data = features_df[feature_cols].values
+            
+            # Trouver l'index de la colonne CLOSE pour le target
+            target_col_idx = 0  # Par défaut, utiliser la première colonne
+            if 'CLOSE' in features_df.columns:
+                # Si CLOSE est dans les features, l'utiliser comme target
+                close_idx = list(features_df.columns).index('CLOSE')
+                # Ajouter CLOSE aux features si nécessaire
+                if 'CLOSE' not in feature_cols:
+                    feature_cols.append('CLOSE')
+                    # Ajouter la colonne CLOSE aux données
+                    close_data = features_df['CLOSE'].values.reshape(-1, 1)
+                    features_data = np.hstack([features_data, close_data])
+                    logger.info("🎯 Ajout de CLOSE aux features pour le target")
+                
+                target_col_idx = feature_cols.index('CLOSE')
+                logger.info(f"🎯 Utilisation de CLOSE (index {target_col_idx}) comme target")
+            
+            # Gérer les NaN - remplacer par la moyenne de la colonne
+            from sklearn.impute import SimpleImputer
+            imputer = SimpleImputer(strategy='mean')
+            features_data = imputer.fit_transform(features_data)
+            
+            # Normaliser les features
+            self.scaler = RobustScaler()
+            features_scaled = self.scaler.fit_transform(features_data)
+            
+            # Créer les séquences
+            X, y = self.create_sequences(features_scaled, target_col_idx)
+            if X is None:
+                return {"error": "Pas assez de données pour créer les séquences"}
+            
+            # Diviser en train/validation
+            split_idx = int(len(X) * (1 - validation_split))
+            X_train, X_val = X[:split_idx], X[split_idx:]
+            y_train, y_val = y[:split_idx], y[split_idx:]
+            
+            # Créer le modèle
+            input_size = X.shape[2]
+            self.model = FinancialLSTM(
+                input_size=input_size,
+                hidden_size=64,
+                num_layers=2,
+                output_size=1
+            ).to(self.device)
+            
+            # Optimiseur et loss
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+            criterion = nn.MSELoss()
+            
+            # Entraînement
+            train_losses = []
+            val_losses = []
+            best_val_loss = float('inf')
+            patience = 15
+            patience_counter = 0
+            
+            for epoch in range(epochs):
+                # Mode entraînement
+                self.model.train()
+                train_loss = 0.0
+                
+                # Batch training
+                for i in range(0, len(X_train), batch_size):
+                    batch_X = torch.FloatTensor(X_train[i:i+batch_size]).to(self.device)
+                    batch_y = torch.FloatTensor(y_train[i:i+batch_size]).to(self.device)
+                    
+                    optimizer.zero_grad()
+                    outputs = self.model(batch_X)
+                    loss = criterion(outputs.squeeze(), batch_y)
+                    loss.backward()
+                    optimizer.step()
+                    
+                    train_loss += loss.item()
+                
+                # Validation
+                self.model.eval()
+                val_loss = 0.0
+                with torch.no_grad():
+                    for i in range(0, len(X_val), batch_size):
+                        batch_X = torch.FloatTensor(X_val[i:i+batch_size]).to(self.device)
+                        batch_y = torch.FloatTensor(y_val[i:i+batch_size]).to(self.device)
+                        
+                        outputs = self.model(batch_X)
+                        loss = criterion(outputs.squeeze(), batch_y)
+                        val_loss += loss.item()
+                
+                train_loss /= (len(X_train) // batch_size + 1)
+                val_loss /= (len(X_val) // batch_size + 1)
+                
+                train_losses.append(train_loss)
+                val_losses.append(val_loss)
+                
+                # Early stopping
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                
+                if epoch % 10 == 0:
+                    logger.info(f"📊 Époque {epoch}: Train Loss={train_loss:.6f}, Val Loss={val_loss:.6f}")
+                
+                if patience_counter >= patience:
+                    logger.info(f"⏹️ Arrêt anticipé à l'époque {epoch}")
+                    break
+            
+            # Marquer comme chargé
+            self.is_loaded = True
+            
+            logger.info(f"✅ Entraînement terminé: {len(train_losses)} époques, Best Val Loss: {best_val_loss:.6f}")
+            
+            return {
+                "success": True,
+                "epochs_trained": len(train_losses),
+                "best_val_loss": best_val_loss,
+                "train_losses": train_losses,
+                "val_losses": val_losses,
+                "features_used": feature_cols
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur entraînement: {e}")
+            return {"error": str(e)}
+    
+    def save_model(self, model_path: Path) -> bool:
+        """Sauvegarde le modèle entraîné"""
+        try:
+            if not self.is_loaded:
+                logger.error("❌ Aucun modèle chargé à sauvegarder")
+                return False
+            
+            # Créer le répertoire si nécessaire
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Sauvegarder le modèle et le scaler
+            model_data = {
+                'model_state_dict': self.model.state_dict(),
+                'scaler': self.scaler,
+                'feature_columns': self.feature_columns,
+                'sequence_length': self.sequence_length,
+                'ticker': self.ticker,
+                'input_size': self.model.lstm.input_size
+            }
+            
+            torch.save(model_data, model_path)
+            logger.info(f"✅ Modèle sauvegardé: {model_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur sauvegarde: {e}")
+            return False
 
 # Alias pour la compatibilité
 LSTMPredictor = PricePredictor

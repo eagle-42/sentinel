@@ -82,11 +82,16 @@ class PredictionService:
     def predict_with_features(self, ticker: str, horizon: int = 20) -> Dict[str, Any]:
         """Génère des prédictions LSTM en chargeant les features techniques"""
         try:
-            from gui.services.data_service import DataService
+            # Charger directement les features techniques depuis le fichier
+            from constants import CONSTANTS
+            features_path = CONSTANTS.get_data_path('features', ticker)
+            if not features_path.exists():
+                logger.warning(f"⚠️ Fichier de features non trouvé: {features_path}")
+                return self._create_empty_prediction()
             
-            # Charger les features techniques
-            data_service = DataService()
-            features_df = data_service.load_data(ticker, use_features=True)
+            # Charger les features
+            features_df = pd.read_parquet(features_path)
+            features_df.columns = features_df.columns.str.upper()
             
             if features_df.empty:
                 logger.warning(f"⚠️ Aucune feature trouvée pour {ticker}")
