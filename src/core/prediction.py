@@ -248,6 +248,95 @@ class PricePredictor:
         except Exception as e:
             logger.error(f"❌ Erreur prédiction: {e}")
             return {"error": str(e)}
+    
+    def predict_with_technical_features(self, features_df: pd.DataFrame, horizon: int = 1) -> Dict[str, Any]:
+        """Fait des prédictions avec des features techniques déjà préparées"""
+        if not self.is_loaded:
+            logger.error("❌ Modèle non chargé")
+            return {"error": "Modèle non chargé"}
+        
+        try:
+            # Les features sont déjà préparées, on peut les utiliser directement
+            # Garder seulement les colonnes de features techniques
+            feature_cols = [col for col in self.feature_columns if col in features_df.columns]
+            
+            if not feature_cols:
+                logger.error("❌ Aucune colonne de feature technique trouvée")
+                return {"error": "Aucune colonne de feature technique trouvée"}
+            
+            # Extraire les features
+            features_data = features_df[feature_cols].values
+            
+            # Normaliser les features avec le scaler
+            if hasattr(self.scaler, 'scale_'):
+                features_scaled = self.scaler.transform(features_data)
+            else:
+                features_scaled = self.scaler.fit_transform(features_data)
+            
+            # Créer les séquences
+            X, y = self.create_sequences(features_scaled)
+            if X is None:
+                return {"error": "Pas assez de données pour créer les séquences"}
+            
+            # Cloner les données numpy pour éviter les erreurs de mémoire
+            X = X.copy()
+            y = y.copy()
+            X = np.ascontiguousarray(X)
+            y = np.ascontiguousarray(y)
+            
+            # Sauvegarder une copie de X pour les prédictions futures
+            X_backup = X.copy()
+            
+            # Prédictions historiques
+            historical_predictions = []
+            with torch.no_grad():
+                for i in range(len(X)):
+                    sequence = torch.FloatTensor(X[i:i+1]).to(self.device)
+                    pred = self.model(sequence)
+                    pred_value = pred.cpu().numpy()[0, 0]
+                    historical_predictions.append(pred_value)
+            
+            # Prédictions futures
+            future_predictions = []
+            future_dates = []
+            
+            if horizon > 0:
+                # Utiliser la dernière séquence pour prédire l'avenir
+                last_sequence = torch.FloatTensor(X_backup[-1:]).to(self.device)
+                
+                for i in range(horizon):
+                    pred = self.model(last_sequence)
+                    pred_value = pred.cpu().numpy()[0, 0]
+                    future_predictions.append(pred_value)
+                    
+                    # Mettre à jour la séquence pour la prochaine prédiction
+                    if i < horizon - 1:
+                        # Décaler la séquence et ajouter la prédiction
+                        last_sequence = torch.cat([
+                            last_sequence[:, 1:, :],
+                            pred.unsqueeze(1)
+                        ], dim=1)
+                
+                # Générer les dates futures
+                if hasattr(features_df.index, 'to_pydatetime'):
+                    last_date = features_df.index[-1]
+                    future_dates = [last_date + pd.Timedelta(days=i+1) for i in range(horizon)]
+                else:
+                    future_dates = [f"Day_{i+1}" for i in range(horizon)]
+            
+            logger.info(f"✅ Prédiction LSTM avec features: {len(historical_predictions)} historiques + {len(future_predictions)} futures")
+            
+            return {
+                "historical_predictions": historical_predictions,
+                "predictions": future_predictions,
+                "prediction_dates": future_dates,
+                "features_used": feature_cols,
+                "model_loaded": True
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur prédiction avec features techniques: {e}")
+            return {"error": str(e)}
 
 # Alias pour la compatibilité
 LSTMPredictor = PricePredictor

@@ -110,12 +110,8 @@ class PredictionService:
             if 'DATE' in df.index.names:
                 df = df.reset_index()
             
-            # Pour les features techniques, ne pas normaliser les colonnes
-            # car elles sont déjà dans le bon format
-            df_normalized = df.copy()
-            
-            # Prédictions complètes (historiques + futures) avec l'horizon demandé
-            prediction_result = self.predictor.predict(df_normalized, horizon=horizon)
+            # Utiliser la nouvelle méthode pour les features techniques
+            prediction_result = self.predictor.predict_with_technical_features(df, horizon=horizon)
             
             if 'error' in prediction_result:
                 logger.warning(f"⚠️ Erreur prédiction: {prediction_result['error']}")
