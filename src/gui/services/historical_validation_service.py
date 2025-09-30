@@ -54,7 +54,7 @@ class HistoricalValidationService:
             
             # Convertir les timestamps
             if 'timestamp' in df.columns:
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], format='ISO8601')
             
             # Ajouter les colonnes manquantes pour la compatibilité
             if 'fusion_score' not in df.columns:
@@ -78,7 +78,7 @@ class HistoricalValidationService:
                 if 'ts_utc' in df.columns:
                     df['timestamp'] = pd.to_datetime(df['ts_utc'])
                 elif 'timestamp' in df.columns:
-                    df['timestamp'] = pd.to_datetime(df['timestamp'])
+                    df['timestamp'] = pd.to_datetime(df['timestamp'], format='ISO8601')
                 logger.info(f"✅ {len(df)} lignes de prix chargées pour {ticker}")
                 return df
             
@@ -162,17 +162,17 @@ class HistoricalValidationService:
                     continue
                 
                 # Normaliser les timezones pour la comparaison
-                if prices_df['timestamp'].dt.tz is not None and timestamp.tzinfo is None:
-                    timestamp = timestamp.replace(tzinfo=prices_df['timestamp'].dt.tz)
-                elif prices_df['timestamp'].dt.tz is None and timestamp.tzinfo is not None:
+                if prices_df['ts_utc'].dt.tz is not None and timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=prices_df['ts_utc'].dt.tz)
+                elif prices_df['ts_utc'].dt.tz is None and timestamp.tzinfo is not None:
                     timestamp = timestamp.replace(tzinfo=None)
-                elif prices_df['timestamp'].dt.tz is not None and timestamp.tzinfo is not None:
+                elif prices_df['ts_utc'].dt.tz is not None and timestamp.tzinfo is not None:
                     # Convertir les deux en UTC pour la comparaison
                     timestamp = timestamp.astimezone(timezone.utc)
-                    prices_df['timestamp'] = prices_df['timestamp'].dt.tz_convert(timezone.utc)
+                    prices_df['ts_utc'] = prices_df['ts_utc'].dt.tz_convert(timezone.utc)
                 
                 # Calculer la différence de temps
-                prices_df['time_diff'] = abs(prices_df['timestamp'] - timestamp)
+                prices_df['time_diff'] = abs(prices_df['ts_utc'] - timestamp)
                 closest_idx = prices_df['time_diff'].idxmin()
                 closest_price_data = prices_df.iloc[closest_idx]
                 
@@ -263,7 +263,11 @@ class HistoricalValidationService:
         """Récupère le prix 15 minutes plus tard depuis les vraies données"""
         try:
             current_price = current_price_data['close']
-            current_idx = current_price_data.name
+            
+            # Trouver l'index correspondant au timestamp de la décision
+            # Chercher la barre la plus proche du timestamp de la décision
+            prices_df['time_diff'] = abs((prices_df['ts_utc'] - timestamp).dt.total_seconds())
+            current_idx = prices_df['time_diff'].idxmin()
             
             # Chercher le prix 15 minutes plus tard dans les vraies données
             # Les données sont en 15min, donc +1 = +15min

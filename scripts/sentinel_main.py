@@ -85,6 +85,26 @@ class SentinelMain:
         except Exception as e:
             logger.error(f"❌ Erreur pipeline trading: {e}")
     
+    def validation_job(self):
+        """Job de validation des décisions en attente"""
+        try:
+            logger.info("🔍 Démarrage validation des décisions en attente")
+            
+            # Importer le service de validation
+            from src.gui.services.decision_validation_service import DecisionValidationService
+            validation_service = DecisionValidationService()
+            
+            # Traiter les validations en attente
+            processed_count = validation_service.process_pending_validations()
+            
+            if processed_count > 0:
+                logger.info(f"✅ {processed_count} validations traitées")
+            else:
+                logger.debug("ℹ️ Aucune validation en attente")
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur validation: {e}")
+    
     def setup_schedule(self):
         """Configure la planification des tâches"""
         # Refresh des prix toutes les 15 minutes
@@ -96,10 +116,14 @@ class SentinelMain:
         # Pipeline de trading toutes les 15 minutes
         schedule.every(15).minutes.do(self.trading_pipeline_job)
         
+        # Validation des décisions en attente toutes les 5 minutes
+        schedule.every(5).minutes.do(self.validation_job)
+        
         logger.info("📅 Planification configurée:")
         logger.info("   - Prix: toutes les 15 minutes")
         logger.info("   - News: toutes les 4 minutes")
         logger.info("   - Trading: toutes les 15 minutes")
+        logger.info("   - Validation: toutes les 5 minutes")
     
     def run_initial_refresh(self):
         """Exécute un refresh initial de toutes les données"""
@@ -114,9 +138,9 @@ class SentinelMain:
             logger.info("2. Refresh des news...")
             self.refresh_news_job()
             
-            # Pipeline de trading
-            logger.info("3. Pipeline de trading...")
-            self.trading_pipeline_job()
+            # NE PAS exécuter le pipeline de trading au démarrage
+            # Il sera exécuté selon les fenêtres fixes de 15 minutes
+            logger.info("3. Pipeline de trading... (attente fenêtre 15min)")
             
             logger.info("✅ Refresh initial terminé")
             

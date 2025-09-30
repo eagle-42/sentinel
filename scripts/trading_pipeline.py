@@ -271,10 +271,69 @@ class TradingPipeline:
         
         return decision
     
+    def _is_decision_window(self) -> bool:
+        """Vérifie si on est dans une fenêtre de décision valide (15 minutes)"""
+        try:
+            import pytz
+            
+            # Timezone US Eastern (gère automatiquement EST/EDT)
+            us_eastern = pytz.timezone('US/Eastern')
+            now_est = datetime.now(us_eastern)
+            
+            # Heures de marché US (9:30-16:00)
+            market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
+            market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
+            
+            # Vérifier si c'est un jour de semaine
+            is_weekday = now_est.weekday() < 5  # 0-4 = lundi-vendredi
+            
+            if not is_weekday:
+                return False
+            
+            if not (market_open <= now_est <= market_close):
+                return False
+            
+            # Vérifier si on est dans une fenêtre de 15 minutes
+            current_minute = now_est.minute
+            return current_minute in [30, 45, 0]  # 9:30, 9:45, 10:00, 10:15, etc.
+            
+        except ImportError:
+            # Fallback si pytz n'est pas disponible
+            from datetime import timezone, timedelta
+            edt = timezone(timedelta(hours=-4))
+            now_est = datetime.now(edt)
+            
+            # Heures de marché US (9:30-16:00 EDT)
+            market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
+            market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
+            
+            # Vérifier si c'est un jour de semaine
+            is_weekday = now_est.weekday() < 5  # 0-4 = lundi-vendredi
+            
+            if not is_weekday:
+                return False
+            
+            if not (market_open <= now_est <= market_close):
+                return False
+            
+            # Vérifier si on est dans une fenêtre de 15 minutes
+            current_minute = now_est.minute
+            return current_minute in [30, 45, 0]  # 9:30, 9:45, 10:00, 10:15, etc.
+    
     def run_trading_pipeline(self) -> Dict[str, Any]:
         """Exécute le pipeline de trading complet"""
         logger.info("🤖 === PIPELINE DE TRADING ===")
         start_time = datetime.now()
+        
+        # Vérifier si on est dans une fenêtre de décision valide (15 minutes)
+        if not self._is_decision_window():
+            logger.info("⏰ Pas dans une fenêtre de décision (15min) - Attente")
+            return {
+                "success": True,
+                "decisions": [],
+                "tickers_processed": 0,
+                "duration": (datetime.now() - start_time).total_seconds()
+            }
         
         decisions = []
         successful_tickers = 0

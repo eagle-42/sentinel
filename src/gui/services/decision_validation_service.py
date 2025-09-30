@@ -29,6 +29,9 @@ class DecisionValidationService:
         # Fichier parquet pour l'historique des validations
         self.validation_file = self.validation_path / "decision_validation_history.parquet"
         
+        # Fichier pour les décisions en attente de validation
+        self.pending_file = self.validation_path / "pending_decisions.json"
+        
         logger.info("🔍 Service de validation des décisions initialisé")
     
     def validate_decision(self, ticker: str, decision: str, fusion_score: float, 
@@ -58,13 +61,21 @@ class DecisionValidationService:
                     "is_correct": None
                 }
             
-            # Attendre un délai pour avoir des données de prix futures
-            # Pour la démonstration, on simule avec des données historiques
-            validation_result = self._simulate_validation(ticker, decision, current_price, timestamp)
+            # Marquer la décision comme en attente de validation
+            validation_result = {
+                "status": "pending",
+                "message": "En attente de validation (15 minutes)...",
+                "accuracy": None,
+                "price_change": None,
+                "validation_time": None,
+                "is_correct": None,
+                "current_price": current_price,
+                "future_price": None,
+                "wait_until": timestamp + timedelta(minutes=15)
+            }
             
-            # Sauvegarder la validation
-            self._save_validation(ticker, decision, fusion_score, current_price, 
-                                timestamp, validation_result)
+            # Sauvegarder la décision en attente
+            self._save_pending_decision(ticker, decision, fusion_score, current_price, timestamp)
             
             return validation_result
             
@@ -78,6 +89,225 @@ class DecisionValidationService:
                 "validation_time": None,
                 "is_correct": None
             }
+    
+    def _save_pending_decision(self, ticker: str, decision: str, fusion_score: float, 
+                              current_price: float, timestamp: datetime):
+        """Sauvegarde une décision en attente de validation"""
+        try:
+            pending_data = {
+                "ticker": ticker,
+                "decision": decision,
+                "fusion_score": fusion_score,
+                "current_price": current_price,
+                "timestamp": timestamp.isoformat(),
+                "wait_until": (timestamp + timedelta(minutes=15)).isoformat()
+            }
+            
+            # Charger les décisions en attente existantes
+            if self.pending_file.exists():
+                with open(self.pending_file, 'r') as f:
+                    pending_decisions = json.load(f)
+            else:
+                pending_decisions = []
+            
+            # Ajouter la nouvelle décision
+            pending_decisions.append(pending_data)
+            
+            # Sauvegarder
+            with open(self.pending_file, 'w') as f:
+                json.dump(pending_decisions, f, indent=2)
+            
+            logger.info(f"⏳ Décision en attente sauvegardée: {ticker} - {decision}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur sauvegarde décision en attente: {e}")
+    
+    def process_pending_validations(self) -> int:
+        """
+        Traite toutes les décisions en attente de validation
+        Retourne le nombre de validations traitées
+        """
+        try:
+            if not self.pending_file.exists():
+                return 0
+            
+            # Charger les décisions en attente
+            with open(self.pending_file, 'r') as f:
+                pending_decisions = json.load(f)
+            
+            if not pending_decisions:
+                return 0
+            
+            processed_count = 0
+            remaining_decisions = []
+            current_time = datetime.now(timezone.utc)
+            
+            for decision_data in pending_decisions:
+                wait_until = datetime.fromisoformat(decision_data['wait_until'].replace('Z', '+00:00'))
+                
+                # Vérifier si 15 minutes se sont écoulées
+                if current_time >= wait_until:
+                    # Traiter la validation
+                    validation_result = self._process_real_validation(decision_data)
+                    
+                    # Sauvegarder la validation complète
+                    self._save_validation(
+                        decision_data['ticker'],
+                        decision_data['decision'],
+                        decision_data['fusion_score'],
+                        decision_data['current_price'],
+                        datetime.fromisoformat(decision_data['timestamp'].replace('Z', '+00:00')),
+                        validation_result
+                    )
+                    
+                    processed_count += 1
+                    logger.info(f"✅ Validation traitée: {decision_data['ticker']} - {decision_data['decision']}")
+                else:
+                    # Garder la décision en attente
+                    remaining_decisions.append(decision_data)
+            
+            # Sauvegarder les décisions restantes
+            with open(self.pending_file, 'w') as f:
+                json.dump(remaining_decisions, f, indent=2)
+            
+            if processed_count > 0:
+                logger.info(f"🔄 {processed_count} validations traitées, {len(remaining_decisions)} en attente")
+            
+            return processed_count
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur traitement validations en attente: {e}")
+            return 0
+    
+    def get_pending_decisions(self, ticker: str) -> List[Dict[str, Any]]:
+        """Récupère les décisions en attente de validation pour un ticker"""
+        try:
+            if not self.pending_file.exists():
+                return []
+            
+            # Charger les décisions en attente
+            with open(self.pending_file, 'r') as f:
+                pending_decisions = json.load(f)
+            
+            # Filtrer par ticker
+            ticker_decisions = [d for d in pending_decisions if d.get('ticker') == ticker]
+            
+            # Convertir les timestamps en objets datetime pour le tri
+            for decision in ticker_decisions:
+                decision['timestamp'] = datetime.fromisoformat(decision['timestamp'].replace('Z', '+00:00'))
+            
+            # Trier par timestamp (plus récent en premier)
+            ticker_decisions.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)
+            
+            return ticker_decisions
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération décisions en attente: {e}")
+            return []
+    
+    def _process_real_validation(self, decision_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Traite une validation réelle avec les vraies données de prix"""
+        try:
+            ticker = decision_data['ticker']
+            decision = decision_data['decision']
+            current_price = decision_data['current_price']
+            timestamp = datetime.fromisoformat(decision_data['timestamp'].replace('Z', '+00:00'))
+            
+            # Charger les données de prix actuelles
+            price_data = self._load_price_data(ticker)
+            
+            if price_data.empty:
+                return {
+                    "status": "no_data",
+                    "message": "Données de prix indisponibles pour validation",
+                    "accuracy": None,
+                    "price_change": None,
+                    "validation_time": datetime.now(),
+                    "is_correct": None,
+                    "current_price": current_price,
+                    "future_price": None
+                }
+            
+            # Récupérer le prix actuel (15 minutes plus tard)
+            future_price = self._get_current_price(price_data, timestamp + timedelta(minutes=15))
+            
+            if future_price is None:
+                return {
+                    "status": "no_future_data",
+                    "message": "Prix futur non disponible",
+                    "accuracy": None,
+                    "price_change": None,
+                    "validation_time": datetime.now(),
+                    "is_correct": None,
+                    "current_price": current_price,
+                    "future_price": None
+                }
+            
+            # Calculer le changement de prix
+            price_change = (future_price - current_price) / current_price * 100
+            
+            # Déterminer si la décision était correcte
+            is_correct = self._evaluate_decision_correctness(decision, price_change)
+            
+            # Calculer la précision
+            accuracy = self._calculate_accuracy(decision, price_change)
+            
+            # Déterminer le statut
+            if accuracy >= 0.8:
+                status = "✅ Correct"
+                message = f"Prix: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
+            elif accuracy >= 0.5:
+                status = "⚠️ Partiellement correct"
+                message = f"Prix: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
+            else:
+                status = "❌ Incorrect"
+                message = f"Prix: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
+            
+            return {
+                "status": status,
+                "message": message,
+                "accuracy": accuracy,
+                "price_change": price_change,
+                "validation_time": datetime.now(),
+                "is_correct": is_correct,
+                "current_price": current_price,
+                "future_price": future_price
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur validation réelle: {e}")
+            return {
+                "status": "error",
+                "message": f"Erreur validation: {str(e)}",
+                "accuracy": None,
+                "price_change": None,
+                "validation_time": datetime.now(),
+                "is_correct": None,
+                "current_price": current_price,
+                "future_price": None
+            }
+    
+    def _get_current_price(self, price_data: pd.DataFrame, target_time: datetime) -> Optional[float]:
+        """Récupère le prix actuel le plus proche du temps cible"""
+        try:
+            if price_data.empty:
+                return None
+            
+            # Trouver le prix le plus proche du temps cible
+            price_data['time_diff'] = abs((price_data['ts_utc'] - target_time).dt.total_seconds())
+            closest_idx = price_data['time_diff'].idxmin()
+            
+            # Vérifier que le prix est dans une fenêtre acceptable (max 30 minutes)
+            time_diff_minutes = price_data.iloc[closest_idx]['time_diff'] / 60
+            if time_diff_minutes > 30:
+                logger.warning(f"⚠️ Prix le plus proche à {time_diff_minutes:.1f} minutes du temps cible")
+                return None
+            
+            return price_data.iloc[closest_idx]['close']
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération prix actuel: {e}")
+            return None
     
     def _simulate_validation(self, ticker: str, decision: str, current_price: float, 
                            timestamp: datetime) -> Dict[str, Any]:

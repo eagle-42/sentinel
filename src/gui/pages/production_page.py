@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 import requests
@@ -26,6 +26,7 @@ from gui.services.fusion_service import FusionService
 from gui.services.llm_service import LLMService
 from gui.services.monitoring_service import MonitoringService
 from gui.services.data_monitor_service import DataMonitorService
+from gui.services.decision_validation_service import DecisionValidationService
 
 
 def show_production_page():
@@ -338,14 +339,14 @@ def show_production_page():
         """, unsafe_allow_html=True)
     
     with col2:
-        # 2. Dernière MAJ + Prochain Update
+        # 2. Dernière MAJ + Prochain Update (fenêtres fixes de 15 minutes)
         current_time = datetime.now().strftime("%H:%M:%S")
-        next_update = (datetime.now() + timedelta(minutes=15)).strftime("%H:%M")
+        next_decision_time = _get_next_decision_time()
         st.markdown(f"""
         <div class="kpi-box">
             <div class="kpi-value" style="color: #667eea;">{current_time}</div>
             <div class="kpi-label">Dernière MAJ</div>
-            <div class="kpi-label" style="font-size: 0.8rem; color: #888; margin-top: 0.5rem;">Prochain: {next_update}</div>
+            <div class="kpi-label" style="font-size: 0.8rem; color: #888; margin-top: 0.5rem;">Prochain: {next_decision_time}</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -667,7 +668,6 @@ def show_production_page():
             # Charger les décisions récentes pour avoir l'heure fixe
             decisions_path = Path("data/trading/decisions_log/trading_decisions.json")
             if decisions_path.exists():
-                import json
                 with open(decisions_path, 'r') as f:
                     decisions = json.load(f)
                 if decisions:
@@ -675,7 +675,6 @@ def show_production_page():
                     last_decision = decisions[-1]
                     timestamp_str = last_decision.get('timestamp', '')
                     if timestamp_str:
-                        from datetime import datetime
                         import pytz
                         # Parser le timestamp
                         dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
@@ -878,9 +877,43 @@ def show_decisions_table(ticker):
         validation_summary = historical_validation.get_validation_summary(ticker, days=7)  # 7 derniers jours
         validation_results = validation_summary.get('validation_results', [])
         
-        if validation_results:
+        # Récupérer les décisions en attente de validation
+        decision_validation = DecisionValidationService()
+        pending_decisions = decision_validation.get_pending_decisions(ticker)
+        
+        # Combiner les décisions validées et en attente
+        all_decisions = []
+        
+        # Ajouter les décisions validées
+        for decision in validation_results:
+            decision['status'] = 'validated'
+            all_decisions.append(decision)
+        
+        # Ajouter les décisions en attente
+        for decision in pending_decisions:
+            decision['status'] = 'pending'
+            all_decisions.append(decision)
+        
+        if all_decisions:
             # Trier par timestamp pour avoir les plus récentes en premier
-            recent_decisions = sorted(validation_results, key=lambda x: x.get('timestamp', ''), reverse=True)
+            def get_timestamp_key(decision):
+                timestamp = decision.get('timestamp', '')
+                if isinstance(timestamp, str):
+                    try:
+                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        return dt
+                    except:
+                        return datetime.min.replace(tzinfo=timezone.utc)
+                elif hasattr(timestamp, 'timestamp'):
+                    if timestamp.tzinfo is None:
+                        timestamp = timestamp.replace(tzinfo=timezone.utc)
+                    return timestamp
+                else:
+                    return datetime.min.replace(tzinfo=timezone.utc)
+            
+            recent_decisions = sorted(all_decisions, key=get_timestamp_key, reverse=True)
             
             # Limiter à 10 lignes pour l'affichage
             display_decisions = recent_decisions[:10]
@@ -934,17 +967,27 @@ def show_decisions_table(ticker):
                 
                 # Calculer les prix et le gain
                 current_price = decision.get('current_price', 0)
-                future_price = decision.get('future_price', 0)
-                price_change = decision.get('price_change', 0)
+                decision_status = decision.get('status', 'validated')
                 
-                # Calculer le gain en dollars
-                gain_dollars = future_price - current_price
-                
-                # Déterminer le résultat basé sur la comparaison des prix
-                # Si prix -15min < prix +15min → Positif (hausse)
-                # Si prix -15min > prix +15min → Négatif (baisse)
-                is_positive = current_price < future_price
-                result_text = "Positif" if is_positive else "Négatif"
+                if decision_status == 'pending':
+                    # Décision en attente de validation
+                    future_price = current_price  # Même prix pour l'instant
+                    price_change = 0
+                    gain_dollars = 0
+                    result_text = "⏳ En attente..."
+                else:
+                    # Décision validée
+                    future_price = decision.get('future_price', 0)
+                    price_change = decision.get('price_change', 0)
+                    
+                    # Calculer le gain en dollars
+                    gain_dollars = future_price - current_price
+                    
+                    # Déterminer le résultat basé sur la comparaison des prix
+                    # Si prix -15min < prix +15min → Positif (hausse)
+                    # Si prix -15min > prix +15min → Négatif (baisse)
+                    is_positive = current_price < future_price
+                    result_text = "Positif" if is_positive else "Négatif"
                 
                 table_data.append({
                     'N°': i + 1,
@@ -1078,7 +1121,6 @@ def show_decisions_table(ticker):
 def _check_market_status():
     """Vérifie l'état du marché (ouvert/fermé) - Horaires US (EDT/EST)"""
     import pytz
-    from datetime import timezone, timedelta
     
     # Utiliser pytz pour gérer correctement l'heure d'été américaine
     try:
@@ -1124,6 +1166,7 @@ def _check_market_status():
     except ImportError:
         # Fallback si pytz n'est pas disponible
         # Utiliser EDT (UTC-4) pour septembre 2025
+        from datetime import timezone, timedelta
         edt = timezone(timedelta(hours=-4))
         now_est = datetime.now(edt)
         current_time = now_est.strftime("%H:%M")
@@ -1162,3 +1205,90 @@ def _check_market_status():
                 "next_open": next_open.strftime("%A %H:%M"),
                 "next_close": "16:00"
             }
+
+
+def _get_next_decision_time():
+    """
+    Calcule la prochaine heure de décision basée sur des fenêtres fixes de 15 minutes
+    Heures de marché US : 9:30-16:00 (EDT/EST)
+    Fenêtres : 9:30, 9:45, 10:00, 10:15... 15:45, 16:00
+    """
+    try:
+        import pytz
+        
+        # Timezone US Eastern (gère automatiquement EST/EDT)
+        us_eastern = pytz.timezone('US/Eastern')
+        now_est = datetime.now(us_eastern)
+        
+        # Heures de marché US (9:30-16:00)
+        market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
+        
+        # Si on est avant l'ouverture, prochaine décision à 9:30
+        if now_est < market_open:
+            next_decision = market_open
+        # Si on est après la fermeture, prochaine décision demain à 9:30
+        elif now_est >= market_close:
+            next_decision = market_open + timedelta(days=1)
+        else:
+            # On est pendant les heures de marché, calculer la prochaine fenêtre de 15 minutes
+            current_minute = now_est.minute
+            current_hour = now_est.hour
+            
+            # Calculer la prochaine fenêtre de 15 minutes
+            if current_minute < 30:
+                next_minute = 30
+            elif current_minute < 45:
+                next_minute = 45
+            else:
+                next_minute = 0
+                current_hour += 1
+            
+            # Si on dépasse 16:00, prochaine décision demain à 9:30
+            if current_hour >= 16:
+                next_decision = market_open + timedelta(days=1)
+            else:
+                next_decision = now_est.replace(hour=current_hour, minute=next_minute, second=0, microsecond=0)
+        
+        # Formater l'heure pour l'affichage
+        return next_decision.strftime("%H:%M")
+        
+    except ImportError:
+        # Fallback si pytz n'est pas disponible
+        # Utiliser EDT (UTC-4) pour septembre 2025
+        from datetime import timezone, timedelta
+        edt = timezone(timedelta(hours=-4))
+        now_est = datetime.now(edt)
+        
+        # Heures de marché US (9:30-16:00 EDT)
+        market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
+        
+        # Si on est avant l'ouverture, prochaine décision à 9:30
+        if now_est < market_open:
+            next_decision = market_open
+        # Si on est après la fermeture, prochaine décision demain à 9:30
+        elif now_est >= market_close:
+            next_decision = market_open + timedelta(days=1)
+        else:
+            # On est pendant les heures de marché, calculer la prochaine fenêtre de 15 minutes
+            current_minute = now_est.minute
+            current_hour = now_est.hour
+            
+            # Calculer la prochaine fenêtre de 15 minutes
+            if current_minute < 30:
+                next_minute = 30
+            elif current_minute < 45:
+                next_minute = 45
+            else:
+                next_minute = 0
+                current_hour += 1
+            
+            # Si on dépasse 16:00, prochaine décision demain à 9:30
+            if current_hour >= 16:
+                next_decision = market_open + timedelta(days=1)
+            else:
+                next_decision = now_est.replace(hour=current_hour, minute=next_minute, second=0, microsecond=0)
+        
+        # Formater l'heure pour l'affichage
+        return next_decision.strftime("%H:%M")
