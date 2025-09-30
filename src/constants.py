@@ -230,8 +230,8 @@ class SentinelConstants:
     
     @classmethod
     def get_feature_columns(cls) -> List[str]:
-        """Retourne les colonnes de features pour le LSTM"""
-        return cls.TOP_FEATURES[:cls.LSTM_TOP_FEATURES]
+        """Retourne les colonnes de features pour le LSTM (en majuscules)"""
+        return [col.upper() for col in cls.TOP_FEATURES[:cls.LSTM_TOP_FEATURES]]
     
     @classmethod
     def get_trading_config(cls) -> Dict[str, Any]:

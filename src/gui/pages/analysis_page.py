@@ -392,7 +392,7 @@ def show_analysis_page():
         elif ticker == "SPY":
             # Graphique de prédiction LSTM
             with st.spinner("Génération des prédictions LSTM..."):
-                prediction_data = prediction_service.predict(filtered_df, horizon=20)
+                prediction_data = prediction_service.predict_with_features(ticker, horizon=20)
                 chart = chart_service.create_prediction_chart(filtered_df, prediction_data, ticker, period)
                 st.plotly_chart(chart, key=f"prediction_chart_{chart_key}", config={'displayModeBar': False})
             
