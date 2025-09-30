@@ -16,7 +16,7 @@ def test_imports():
         from src.constants import CONSTANTS
         from src.config import config
         from src.core.fusion import AdaptiveFusion
-        from src.core.prediction import LSTMPredictor, PredictionEngine
+        from src.core.prediction import PricePredictor, LSTMPredictor
         from src.core.sentiment import SentimentAnalyzer, FinBertAnalyzer
         from src.data.storage import DataStorage, ParquetStorage
         from src.data.crawler import DataCrawler, PriceCrawler, NewsCrawler
@@ -44,7 +44,7 @@ def test_config_initialization():
 def test_core_modules_initialization():
     """Test l'initialisation des modules core"""
     from src.core.fusion import AdaptiveFusion
-    from src.core.prediction import LSTMPredictor, PredictionEngine
+    from src.core.prediction import PricePredictor, LSTMPredictor
     from src.core.sentiment import SentimentAnalyzer, FinBertAnalyzer
     
     # Test fusion
@@ -52,11 +52,9 @@ def test_core_modules_initialization():
     assert fusion is not None
     
     # Test prediction
-    predictor = LSTMPredictor("SPY")
+    predictor = PricePredictor("SPY")
     assert predictor.ticker == "SPY"
-    
-    engine = PredictionEngine()
-    assert engine is not None
+    assert predictor is not None
     
     # Test sentiment
     analyzer = SentimentAnalyzer()

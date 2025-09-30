@@ -36,10 +36,11 @@ class NewsRefresher:
         
         # Configuration des feeds RSS
         self.rss_feeds = [
-            "https://feeds.finance.yahoo.com/rss/2.0/headline",
             "https://www.cnbc.com/id/100003114/device/rss/rss.html",
             "https://feeds.bloomberg.com/markets/news.rss",
-            "https://www.investing.com/rss/news.rss"
+            "https://www.investing.com/rss/news.rss",
+            "https://feeds.marketwatch.com/marketwatch/topstories/",
+            "https://seekingalpha.com/api/sa/combined/RSS.xml"
         ]
         
         # Mots-clés pour la détection de tickers

@@ -154,16 +154,30 @@ class TradingPipeline:
     def get_lstm_prediction(self, ticker: str, prices: pd.DataFrame) -> Optional[float]:
         """Récupère la prédiction LSTM pour un ticker"""
         try:
-            # Vérifier si le prédicteur est prêt
-            if not self.prediction_engine.is_ticker_ready(ticker):
-                logger.warning(f"⚠️ Prédicteur LSTM non prêt pour {ticker}")
+            # Charger les données de features techniques
+            features_path = CONSTANTS.get_data_path("features", ticker)
+            if not features_path.exists():
+                logger.warning(f"⚠️ Données de features non trouvées pour {ticker}")
+                return None
+            
+            # Charger les features
+            features_data = pd.read_parquet(features_path)
+            if features_data.empty:
+                logger.warning(f"⚠️ Données de features vides pour {ticker}")
+                return None
+            
+            # Initialiser le prédicteur
+            predictor = PricePredictor(ticker)
+            
+            # Charger le modèle
+            if not predictor.load_model():
+                logger.warning(f"⚠️ Impossible de charger le modèle pour {ticker}")
                 return None
             
             # Préparer les features
-            predictor = self.prediction_engine.get_predictor(ticker)
-            features = predictor.prepare_features(prices)
+            features = predictor.prepare_features(features_data)
             
-            if features is None or features.empty:
+            if features is None:
                 logger.warning(f"⚠️ Impossible de préparer les features pour {ticker}")
                 return None
             

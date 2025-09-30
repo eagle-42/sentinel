@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from src.constants import CONSTANTS
 from src.core.fusion import AdaptiveFusion, FusionConfig, MarketRegime
 from src.core.sentiment import SentimentAnalyzer, FinBertAnalyzer
-from src.core.prediction import LSTMPredictor, PredictionEngine
+from src.core.prediction import PricePredictor, LSTMPredictor
 
 
 @pytest.mark.unit
@@ -287,31 +287,29 @@ class TestLSTMPredictor:
         assert y is None
 
 @pytest.mark.unit
-class TestPredictionEngine:
-    """Tests pour le moteur de prédiction"""
+class TestPricePredictor:
+    """Tests pour le prédicteur de prix"""
     
-    def test_prediction_engine_initialization(self):
-        """Test l'initialisation du moteur de prédiction"""
-        engine = PredictionEngine()
+    def test_predictor_initialization(self):
+        """Test l'initialisation du prédicteur"""
+        predictor = PricePredictor("SPY")
         
-        assert len(engine.predictors) == 0
-        assert not engine.is_initialized
+        assert predictor.ticker == "SPY"
+        assert predictor.is_loaded == False
+        assert predictor.sequence_length > 0
     
-    def test_get_available_tickers(self):
-        """Test la récupération des tickers disponibles"""
-        engine = PredictionEngine()
+    def test_predictor_with_features(self):
+        """Test le prédicteur avec des features"""
+        predictor = PricePredictor("SPY")
         
-        tickers = engine.get_available_tickers()
-        
-        assert isinstance(tickers, list)
-        assert len(tickers) == 0  # Aucun prédicteur initialisé
+        assert predictor.feature_columns is not None
+        assert len(predictor.feature_columns) > 0
     
-    def test_is_ticker_ready(self):
-        """Test la vérification de disponibilité d'un ticker"""
-        engine = PredictionEngine()
+    def test_predictor_with_invalid_ticker(self):
+        """Test avec un ticker invalide"""
+        predictor = PricePredictor("INVALID")
         
-        assert not engine.is_ticker_ready("SPY")
-        assert not engine.is_ticker_ready("NVDA")
+        assert predictor.ticker == "INVALID"
 
 # Tests d'intégration
 @pytest.mark.integration
