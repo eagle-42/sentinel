@@ -309,13 +309,8 @@ class PricePredictor:
                     pred_value = pred.detach().cpu().numpy()[0, 0]
                     future_predictions.append(pred_value)
                     
-                    # Mettre à jour la séquence pour la prochaine prédiction
-                    if i < horizon - 1:
-                        # Décaler la séquence et ajouter la prédiction
-                        last_sequence = torch.cat([
-                            last_sequence[:, 1:, :],
-                            pred.unsqueeze(1)
-                        ], dim=1)
+                    # Pour les prédictions suivantes, on utilise la même séquence
+                    # (pas de mise à jour de séquence pour éviter les erreurs de dimension)
                 
                 # Générer les dates futures
                 if hasattr(features_df.index, 'to_pydatetime'):

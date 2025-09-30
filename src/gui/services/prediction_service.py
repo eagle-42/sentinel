@@ -153,20 +153,18 @@ class PredictionService:
             else:
                 df_normalized = df.copy()
             
-            # Normaliser les colonnes en minuscules
-            try:
-                df_normalized = normalize_columns(df_normalized)
-            except ValueError as e:
-                logger.error(f"❌ Erreur normalisation: {e}")
-                return self._create_empty_prediction()
+            # Pour les features, on n'a pas besoin de normaliser les colonnes
+            # car elles sont déjà en majuscules et n'ont pas de colonnes 'date'/'close'
+            df_normalized = df_normalized.copy()
             
-            # Pour les features, utiliser l'index comme dates et une colonne numérique comme prix
-            if 'date' not in df_normalized.columns and df_normalized.index.name == 'DATE':
+            # Pour les features, utiliser l'index comme dates
+            if df_normalized.index.name == 'DATE':
                 df_sorted = df_normalized.reset_index()
                 dates = df_sorted['DATE'].tolist()
             else:
-                df_sorted = df_normalized.sort_values('date').reset_index(drop=True)
-                dates = df_sorted['date'].tolist()
+                # Créer des dates fictives si pas d'index DATE
+                df_sorted = df_normalized.reset_index(drop=True)
+                dates = [f"Day_{i+1}" for i in range(len(df_sorted))]
             
             # Utiliser une colonne numérique comme référence de prix
             numeric_cols = df_sorted.select_dtypes(include=[np.number]).columns.tolist()
@@ -174,8 +172,17 @@ class PredictionService:
                 logger.error("❌ Aucune colonne numérique trouvée pour fallback")
                 return self._create_empty_prediction()
             
-            # Utiliser la première colonne numérique comme prix de référence
-            price_col = numeric_cols[0]
+            # Chercher une colonne de prix appropriée (close, open, high, low)
+            price_col = None
+            for col in ['close', 'open', 'high', 'low', 'CLOSE', 'OPEN', 'HIGH', 'LOW']:
+                if col in df_sorted.columns:
+                    price_col = col
+                    break
+            
+            # Si aucune colonne de prix trouvée, utiliser la première colonne numérique
+            if price_col is None:
+                price_col = numeric_cols[0]
+            
             prices = df_sorted[price_col].tolist()
             logger.info(f"✅ Utilisation de {price_col} comme prix de référence pour fallback")
             
@@ -210,7 +217,11 @@ class PredictionService:
             
             if len(prices) > 0:
                 last_price = prices[-1]
-                last_date = pd.to_datetime(dates[-1])
+                # Gérer les dates fictives
+                if dates[-1].startswith('Day_'):
+                    last_date = pd.Timestamp.now()
+                else:
+                    last_date = pd.to_datetime(dates[-1])
                 
                 # Calculer la tendance récente pour les prédictions futures
                 recent_returns = []

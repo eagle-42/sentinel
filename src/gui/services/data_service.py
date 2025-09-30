@@ -174,6 +174,9 @@ class DataService:
         # Nettoyer les NaN
         df = df.fillna(method='ffill').fillna(method='bfill')
         
+        # Normaliser les colonnes en majuscules pour correspondre aux features attendues
+        df.columns = df.columns.str.upper()
+        
         logger.info(f"✅ Features chargées pour {ticker}: {len(df)} lignes, {len(df.columns)} colonnes")
         return df
     
