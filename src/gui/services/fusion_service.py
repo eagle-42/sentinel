@@ -218,21 +218,10 @@ class FusionService:
             }
     
     def _simulate_fusion_score(self, price: float, sentiment: float, prediction: float) -> float:
-        """Simule un score de fusion (fallback) avec plus de variabilité"""
-        # Poids adaptatifs basés sur la volatilité des signaux
-        weights = [0.4, 0.3, 0.3]  # price, sentiment, prediction
-        signals = [price, sentiment, prediction]
-        
-        # Calcul pondéré
-        fusion_score = sum(w * s for w, s in zip(weights, signals))
-        
-        # Ajouter de la variabilité pour générer plus de BUY/SELL
-        import random
-        variation = random.uniform(-0.1, 0.1)  # Variation de ±10%
-        fusion_score += variation
-        
-        # Normaliser entre -0.5 et 1.5 pour permettre plus de BUY/SELL
-        return max(-0.5, min(1.5, fusion_score))
+        """FONCTION DÉSACTIVÉE - Simulation interdite selon les règles du projet"""
+        logger.error("❌ _simulate_fusion_score() DÉSACTIVÉE - Simulations interdites")
+        # Retourner une valeur neutre pour éviter les erreurs
+        return 0.5
     
     def _get_recommendation(self, score: float, confidence: float) -> str:
         """Détermine la recommandation basée sur le score et la confiance"""

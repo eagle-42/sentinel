@@ -8,19 +8,13 @@ coverage.xml
 *.log.*
 .parquet
 data/
-
-.env.example
-.env
-.*
 .archive
 .json
 .coverage
 .png
 .csv 
-.cursor
-.cursorrules
+
 # Ajout des règles Git importantes
-.env
 __pycache__/
 *.pyc
 *.pyo
@@ -35,11 +29,11 @@ htmlcov/
 .idea/
 *.tmp
 *.temp
-.venv/
+
 venv/
 env/
 .cursor/settings.json
-.cursorrules
+cursorrules
 .cursor/
 
 README.mdREADME.md

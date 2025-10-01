@@ -19,13 +19,13 @@ class SentinelConstants:
     }
     
     # =============================================================================
-    # CONFIGURATION LSTM (BASÉE SUR LES ANALYSES)
+    # CONFIGURATION LSTM (ARTICLE arXiv:2501.17366v1 EXACT)
     # =============================================================================
-    LSTM_SEQUENCE_LENGTH: int = 20  # Optimal selon les analyses
-    LSTM_TOP_FEATURES: int = 15     # Features les plus corrélées
+    LSTM_SEQUENCE_LENGTH: int = 216  # 216 jours (article exact, ~10 mois)
+    LSTM_TOP_FEATURES: int = 10      # Features corrélées |corr| > 0.5
     LSTM_PREDICTION_HORIZON: int = 1 # 1 jour optimal pour stabilité
-    LSTM_HIDDEN_SIZES: List[int] = [64, 32]  # Architecture optimisée
-    LSTM_DROPOUT_RATE: float = 0.2
+    LSTM_HIDDEN_SIZES: List[int] = [64, 32]  # Simple = meilleur (128x3 = overfitting)
+    LSTM_DROPOUT_RATE: float = 0.2  # 0.2 optimal
     LSTM_EPOCHS: int = 100
     LSTM_BATCH_SIZE: int = 32
     LSTM_PATIENCE: int = 15

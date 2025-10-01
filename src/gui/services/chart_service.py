@@ -317,6 +317,7 @@ class ChartService:
             if 'historical_predictions' in prediction_data and prediction_data['historical_predictions']:
                 hist_preds = prediction_data['historical_predictions']
                 
+                # Vérifier que les tailles correspondent
                 if len(hist_preds) == len(df_sorted):
                     fig.add_trace(go.Scatter(
                         x=df_sorted['date'],
@@ -327,6 +328,9 @@ class ChartService:
                         marker=dict(size=6),
                         hovertemplate='<b>Prédiction Historique</b><br>Date: %{x}<br>Prix prédit: $%{y:.2f}<extra></extra>'
                     ))
+                else:
+                    # Tailles différentes : ne pas afficher les prédictions historiques
+                    logger.warning(f"⚠️ Prédictions historiques non affichées: {len(hist_preds)} prédictions vs {len(df_sorted)} données filtrées")
             
             # 3. Prédictions futures (rouge) - Style HOLD_FRONT
             if 'predictions' in prediction_data and prediction_data['predictions'] and \
@@ -339,38 +343,6 @@ class ChartService:
                 if pred_dates and not isinstance(pred_dates[0], pd.Timestamp):
                     pred_dates = [pd.to_datetime(d) for d in pred_dates]
                 
-                # Ajouter de la variabilité aux prédictions pour éviter la ligne droite
-                if len(predictions) > 1:
-                    # Calculer la volatilité historique réelle
-                    historical_volatility = df_sorted['close'].pct_change().std()
-                    if pd.isna(historical_volatility) or historical_volatility == 0:
-                        historical_volatility = 0.02  # Volatilité par défaut
-                    
-                    # Générer des prédictions plus réalistes avec tendance et volatilité
-                    enhanced_predictions = []
-                    current_price = predictions[0]
-                    
-                    for i, pred in enumerate(predictions):
-                        if i == 0:
-                            enhanced_predictions.append(pred)
-                        else:
-                            # Calculer la tendance basée sur les données historiques récentes
-                            if len(df_sorted) >= 20:
-                                recent_returns = df_sorted['close'].pct_change().tail(20).dropna()
-                                avg_return = recent_returns.mean()
-                                trend_factor = 1 + avg_return * 0.5  # Tendance basée sur l'historique
-                            else:
-                                trend_factor = 1.001  # Tendance légèrement haussière par défaut
-                            
-                            # Ajouter de la volatilité réaliste
-                            volatility_factor = 1 + np.random.normal(0, historical_volatility * 0.3)
-                            
-                            # Calculer le prix prédit avec tendance et volatilité
-                            predicted_price = current_price * trend_factor * volatility_factor
-                            enhanced_predictions.append(predicted_price)
-                            current_price = predicted_price
-                    
-                    predictions = enhanced_predictions
                 
                 fig.add_trace(go.Scatter(
                     x=pred_dates,
@@ -403,15 +375,22 @@ class ChartService:
                 hist_preds = prediction_data['historical_predictions']
                 real_prices = df_sorted['close'].values
                 
-                # Calcul des métriques historiques
-                mae_hist = np.mean(np.abs(np.array(hist_preds) - real_prices))
-                mape_hist = np.mean(np.abs((np.array(hist_preds) - real_prices) / real_prices)) * 100
-                correlation_hist = np.corrcoef(hist_preds, real_prices)[0, 1]
-                
-                performance_text += f"<b>📊 PERFORMANCE HISTORIQUE:</b><br>"
-                performance_text += f"• Erreur Moyenne: {mae_hist:.2f}$<br>"
-                performance_text += f"• Erreur Relative: {mape_hist:.1f}%<br>"
-                performance_text += f"• Corrélation: {correlation_hist:.3f}<br><br>"
+                # VÉRIFIER que les tailles correspondent avant de calculer
+                if len(hist_preds) == len(real_prices):
+                    # Calcul des métriques historiques
+                    mae_hist = np.mean(np.abs(np.array(hist_preds) - real_prices))
+                    mape_hist = np.mean(np.abs((np.array(hist_preds) - real_prices) / real_prices)) * 100
+                    correlation_hist = np.corrcoef(hist_preds, real_prices)[0, 1]
+                    
+                    performance_text += f"<b>📊 PERFORMANCE HISTORIQUE:</b><br>"
+                    performance_text += f"• Erreur Moyenne: {mae_hist:.2f}$<br>"
+                    performance_text += f"• Erreur Relative: {mape_hist:.1f}%<br>"
+                    performance_text += f"• Corrélation: {correlation_hist:.3f}<br><br>"
+                else:
+                    # Tailles différentes : ne pas afficher les métriques historiques
+                    logger.warning(f"⚠️ Tailles différentes: prédictions={len(hist_preds)}, prix={len(real_prices)}")
+                    performance_text += f"<b>📊 PERFORMANCE HISTORIQUE:</b><br>"
+                    performance_text += f"• Non disponible (période filtrée)<br><br>"
             
             if 'predictions' in prediction_data and prediction_data['predictions']:
                 future_preds = prediction_data['predictions']

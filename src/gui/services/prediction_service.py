@@ -147,7 +147,13 @@ class PredictionService:
             return self._fallback_predict(df, horizon)
     
     def _fallback_predict(self, df: pd.DataFrame, horizon: int) -> Dict[str, Any]:
-        """Prédiction fallback basée sur HOLD_FRONT - Logique sophistiquée"""
+        """Prédiction fallback sans simulation - Retourne erreur si modèle non disponible"""
+        logger.error("❌ FALLBACK DÉSACTIVÉ - Aucune simulation autorisée selon les règles du projet")
+        logger.error("❌ Le modèle LSTM doit être chargé correctement pour faire des prédictions")
+        return self._create_empty_prediction()
+    
+    def _fallback_predict_OLD_DISABLED(self, df: pd.DataFrame, horizon: int) -> Dict[str, Any]:
+        """ANCIEN FALLBACK DÉSACTIVÉ - Violait les règles anti-simulation"""
         try:
             if df.empty:
                 return self._create_empty_prediction()
@@ -165,11 +171,12 @@ class PredictionService:
             # Pour les features, utiliser l'index comme dates
             if df_normalized.index.name == 'DATE':
                 df_sorted = df_normalized.reset_index()
-                dates = df_sorted['DATE'].tolist()
+                dates = pd.to_datetime(df_sorted['DATE']).tolist()
             else:
-                # Créer des dates fictives si pas d'index DATE
+                # Utiliser des dates réelles basées sur aujourd'hui
                 df_sorted = df_normalized.reset_index(drop=True)
-                dates = [f"Day_{i+1}" for i in range(len(df_sorted))]
+                base_date = pd.Timestamp.now()
+                dates = [base_date - pd.Timedelta(days=len(df_sorted)-i-1) for i in range(len(df_sorted))]
             
             # Utiliser une colonne numérique comme référence de prix
             numeric_cols = df_sorted.select_dtypes(include=[np.number]).columns.tolist()
@@ -263,15 +270,10 @@ class PredictionService:
                     future_dates.append(future_date)
                     current_price = predicted_price
             
-            logger.info(f"✅ Prédiction fallback HOLD_FRONT: {len(historical_predictions)} historiques + {len(future_predictions)} futures")
+            logger.warning(f"⚠️ ANCIEN FALLBACK (DÉSACTIVÉ): {len(historical_predictions)} historiques + {len(future_predictions)} futures")
             
-            return {
-                'historical_predictions': historical_predictions,
-                'predictions': future_predictions,
-                'prediction_dates': future_dates,
-                'model_type': 'fallback_hold_front',
-                'confidence': 0.8
-            }
+            # NE JAMAIS RETOURNER DE SIMULATIONS
+            return self._create_empty_prediction()
             
         except Exception as e:
             logger.error(f"❌ Erreur fallback: {e}")

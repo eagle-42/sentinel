@@ -312,30 +312,42 @@ class DecisionValidationService:
     def _simulate_validation(self, ticker: str, decision: str, current_price: float, 
                            timestamp: datetime) -> Dict[str, Any]:
         """
-        Simule la validation en utilisant des données historiques
-        En production, ceci serait remplacé par une validation en temps réel
+        FONCTION DÉSACTIVÉE - Utilise VRAIES données historiques uniquement (pas de simulation)
+        Valide avec les données réelles du marché
         """
         try:
-            # Charger les données de prix pour simuler l'évolution
+            # Charger les VRAIES données de prix du marché
             price_data = self._load_price_data(ticker)
             
             if price_data.empty:
+                logger.warning(f"⚠️ Aucune donnée réelle disponible pour valider {ticker}")
                 return {
                     "status": "no_data",
-                    "message": "Données de prix indisponibles",
+                    "message": "Données de prix réelles indisponibles",
                     "accuracy": None,
                     "price_change": None,
                     "validation_time": None,
                     "is_correct": None
                 }
             
-            # Récupérer le prix 15 minutes plus tard depuis les vraies données
+            # Récupérer le VRAI prix 15 minutes plus tard depuis les données du marché
             future_price = self._get_future_price(price_data, current_price, timestamp)
             
-            # Calculer le changement de prix
+            if future_price is None:
+                logger.warning(f"⚠️ Prix futur réel non disponible pour {ticker}")
+                return {
+                    "status": "pending",
+                    "message": "Validation en attente de données réelles",
+                    "accuracy": None,
+                    "price_change": None,
+                    "validation_time": None,
+                    "is_correct": None
+                }
+            
+            # Calculer le changement de prix RÉEL
             price_change = (future_price - current_price) / current_price * 100
             
-            # Déterminer si la décision était correcte
+            # Déterminer si la décision était correcte basé sur les VRAIES données
             is_correct = self._evaluate_decision_correctness(decision, price_change)
             
             # Calculer la précision
@@ -344,13 +356,15 @@ class DecisionValidationService:
             # Déterminer le statut
             if accuracy >= 0.8:
                 status = "✅ Correct"
-                message = f"Prix: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
+                message = f"Prix réel: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
             elif accuracy >= 0.5:
                 status = "⚠️ Partiellement correct"
-                message = f"Prix: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
+                message = f"Prix réel: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
             else:
                 status = "❌ Incorrect"
-                message = f"Prix: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
+                message = f"Prix réel: ${current_price:.2f} → ${future_price:.2f} ({price_change:+.2f}%)"
+            
+            logger.info(f"✅ Validation avec VRAIES données: {ticker} {decision} - {status}")
             
             return {
                 "status": status,
@@ -364,10 +378,10 @@ class DecisionValidationService:
             }
             
         except Exception as e:
-            logger.error(f"❌ Erreur simulation validation: {e}")
+            logger.error(f"❌ Erreur validation avec données réelles: {e}")
             return {
                 "status": "error",
-                "message": f"Erreur simulation: {str(e)}",
+                "message": f"Erreur validation: {str(e)}",
                 "accuracy": None,
                 "price_change": None,
                 "validation_time": None,
