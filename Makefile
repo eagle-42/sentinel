@@ -26,16 +26,21 @@ install: ## Installer les dépendances
 	uv sync
 	@echo "$(GREEN)✅ Dépendances installées$(NC)"
 
-start: ## Démarrer l'application (avec Ollama)
-	@echo "$(YELLOW)🚀 Démarrage de Sentinel2...$(NC)"
+start: ## Démarrer l'application COMPLÈTE (Ollama + Prefect + Orchestrateur + Streamlit)
+	@echo "$(YELLOW)🚀 Démarrage COMPLET de Sentinel2...$(NC)"
 	@make start-ollama
-	@echo "$(YELLOW)⏳ Attente du démarrage d'Ollama...$(NC)"
+	@echo "$(YELLOW)⏳ Attente démarrage Ollama...$(NC)"
 	@sleep 3
+	@make start-prefect-server
+	@echo "$(YELLOW)⏳ Attente démarrage Prefect...$(NC)"
+	@sleep 5
 	@make start-orchestrator
-	@echo "$(YELLOW)⏳ Attente du démarrage de l'orchestrateur...$(NC)"
+	@echo "$(YELLOW)⏳ Attente démarrage orchestrateur...$(NC)"
 	@sleep 2
 	@make start-streamlit
-	@echo "$(GREEN)✅ Application démarrée sur http://localhost:$(STREAMLIT_PORT)$(NC)"
+	@echo "$(GREEN)✅ Application démarrée !$(NC)"
+	@echo "$(GREEN)   Streamlit: http://localhost:$(STREAMLIT_PORT)$(NC)"
+	@echo "$(GREEN)   Prefect:   http://localhost:4200$(NC)"
 
 start-ollama: ## Démarrer Ollama en arrière-plan
 	@echo "$(YELLOW)🧠 Démarrage d'Ollama...$(NC)"
@@ -44,6 +49,15 @@ start-ollama: ## Démarrer Ollama en arrière-plan
 		echo "$(GREEN)✅ Ollama démarré$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️ Ollama déjà en cours d'exécution$(NC)"; \
+	fi
+
+start-prefect-server: ## Démarrer le serveur Prefect
+	@echo "$(YELLOW)🚀 Démarrage serveur Prefect...$(NC)"
+	@if ! lsof -i :4200 > /dev/null 2>&1; then \
+		nohup uv run prefect server start > data/logs/prefect_server.log 2>&1 & \
+		echo "$(GREEN)✅ Prefect serveur démarré$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️ Prefect déjà en cours d'exécution$(NC)"; \
 	fi
 
 start-orchestrator: ## Démarrer l'orchestrateur (sentinel_main)
@@ -64,12 +78,13 @@ start-streamlit: ## Démarrer Streamlit
 		echo "$(YELLOW)⚠️ Streamlit déjà en cours d'exécution$(NC)"; \
 	fi
 
-stop: ## Arrêter l'application
-	@echo "$(YELLOW)🛑 Arrêt de Sentinel2...$(NC)"
+stop: ## Arrêter l'application COMPLÈTE
+	@echo "$(YELLOW)🛑 Arrêt COMPLET de Sentinel2...$(NC)"
 	@make stop-streamlit
 	@make stop-orchestrator
+	@make stop-prefect
 	@make stop-ollama
-	@echo "$(GREEN)✅ Application arrêtée$(NC)"
+	@echo "$(GREEN)✅ Application complètement arrêtée$(NC)"
 
 stop-streamlit: ## Arrêter Streamlit
 	@echo "$(YELLOW)📊 Arrêt de Streamlit...$(NC)"
@@ -80,6 +95,12 @@ stop-orchestrator: ## Arrêter l'orchestrateur
 	@echo "$(YELLOW)🤖 Arrêt de l'orchestrateur...$(NC)"
 	@pkill -f "sentinel_main.py" || true
 	@echo "$(GREEN)✅ Orchestrateur arrêté$(NC)"
+
+stop-prefect: ## Arrêter Prefect (serveur + worker)
+	@echo "$(YELLOW)🚀 Arrêt de Prefect...$(NC)"
+	@pkill -f "prefect server" || true
+	@pkill -f "prefect worker" || true
+	@echo "$(GREEN)✅ Prefect arrêté$(NC)"
 
 stop-ollama: ## Arrêter Ollama
 	@echo "$(YELLOW)🧠 Arrêt d'Ollama...$(NC)"
@@ -93,8 +114,16 @@ restart: ## Redémarrer l'application
 	@make start
 	@echo "$(GREEN)✅ Application redémarrée$(NC)"
 
-status: ## Vérifier le statut de l'application
+status: ## Vérifier le statut de l'application COMPLÈTE
 	@echo "$(YELLOW)📊 Statut de Sentinel2:$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Prefect Server:$(NC)"
+	@if lsof -i :4200 > /dev/null 2>&1; then \
+		echo "  $(GREEN)✅ En cours d'exécution$(NC)"; \
+		echo "  $(GREEN)   Dashboard: http://localhost:4200$(NC)"; \
+	else \
+		echo "  $(RED)❌ Arrêté$(NC)"; \
+	fi
 	@echo ""
 	@echo "$(YELLOW)Orchestrateur:$(NC)"
 	@if pgrep -f "sentinel_main.py" > /dev/null; then \
@@ -154,19 +183,18 @@ prod: ## Mode production (avec Ollama)
 	@make start
 	@echo "$(GREEN)✅ Mode production activé$(NC)"
 
-prefect-start: ## Démarrer Prefect (orchestration)
-	@echo "$(YELLOW)🚀 Démarrage Prefect...$(NC)"
-	@bash scripts/start_prefect.sh
+prefect-deploy: ## Déployer les flows Prefect
+	@echo "$(YELLOW)🚀 Déploiement flows Prefect...$(NC)"
+	@cd flows && uv run python deployments.py
+	@echo "$(GREEN)✅ Flows déployés$(NC)"
+
+prefect-worker: ## Démarrer Prefect worker
+	@echo "$(YELLOW)🤖 Démarrage Prefect worker...$(NC)"
+	@cd flows && uv run prefect worker start --pool sentinel-pool
 
 prefect-ui: ## Ouvrir Prefect UI
 	@echo "$(YELLOW)📊 Ouverture Prefect UI...$(NC)"
 	@open http://localhost:4200 || xdg-open http://localhost:4200 || echo "Ouvrir: http://localhost:4200"
-
-prefect-stop: ## Arrêter Prefect
-	@echo "$(YELLOW)🛑 Arrêt Prefect...$(NC)"
-	@pkill -f "prefect server" || true
-	@pkill -f "prefect worker" || true
-	@echo "$(GREEN)✅ Prefect arrêté$(NC)"
 
 test: ## Lancer les tests
 	@echo "$(YELLOW)🧪 Lancement des tests...$(NC)"
