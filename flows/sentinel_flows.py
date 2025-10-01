@@ -16,9 +16,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
-# ============================================================================
 # TASKS - Unités atomiques de travail
-# ============================================================================
 
 @task(name="refresh-prices-15min", retries=2, retry_delay_seconds=30, log_prints=True)
 def refresh_prices_15min_task():
@@ -121,9 +119,7 @@ def update_historical_prices_task():
         raise
 
 
-# ============================================================================
 # FLOWS - Pipelines orchestrés
-# ============================================================================
 
 @flow(name="📊 Prix 15min Flow", log_prints=True)
 def prices_15min_flow():
@@ -222,9 +218,7 @@ def full_system_flow():
     }
 
 
-# ============================================================================
 # TEST LOCAL
-# ============================================================================
 
 if __name__ == "__main__":
     # Test local des flows

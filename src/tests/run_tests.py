@@ -233,7 +233,6 @@ class TestRunner:
         print("🧪 Sentinel2 - Tests TDD avec pytest")
         print("=" * 50)
 
-        # Configuration
         if not self.setup_environment():
             print("❌ Échec de la configuration")
             return 1

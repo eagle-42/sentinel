@@ -14,9 +14,7 @@ from sentinel_flows import (
 )
 
 
-# ============================================================================
 # SCHEDULES
-# ============================================================================
 
 # Prix 15min: Toutes les 15 minutes
 prices_15min_schedule = CronSchedule(
@@ -43,9 +41,7 @@ historical_schedule = CronSchedule(
 )
 
 
-# ============================================================================
 # DEPLOYMENTS
-# ============================================================================
 
 # 1. Prix 15min (toutes les 15min)
 prices_15min_deployment = Deployment.build_from_flow(
@@ -103,9 +99,7 @@ full_system_deployment = Deployment.build_from_flow(
 )
 
 
-# ============================================================================
 # DEPLOYMENT REGISTRY
-# ============================================================================
 
 def deploy_all():
     """Déploie tous les flows (5 déploiements)"""

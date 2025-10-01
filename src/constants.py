@@ -10,15 +10,11 @@ from typing import Any, Dict, List
 class SentinelConstants:
     """Constantes globales pour Sentinel2 - Architecture TDD"""
 
-    # =============================================================================
     # TICKERS ET MARCHÉS
-    # =============================================================================
     TICKERS: List[str] = ["SPY"]
     TICKER_NAMES: Dict[str, str] = {"SPY": "S&P 500 ETF", "NVDA": "NVIDIA Corporation"}
 
-    # =============================================================================
     # CONFIGURATION LSTM (ARTICLE arXiv:2501.17366v1 EXACT)
-    # =============================================================================
     LSTM_SEQUENCE_LENGTH: int = 216  # 216 jours (article exact, ~10 mois)
     LSTM_TOP_FEATURES: int = 10  # Features corrélées |corr| > 0.5
     LSTM_PREDICTION_HORIZON: int = 1  # 1 jour optimal pour stabilité
@@ -48,17 +44,13 @@ class SentinelConstants:
         "BB_position",  # 0.0299
     ]
 
-    # =============================================================================
     # CONFIGURATION FINBERT
-    # =============================================================================
     FINBERT_MODE: str = "stub"  # "stub" pour tests, "real" pour production
     FINBERT_TIMEOUT_MS: int = 20000
     FINBERT_MODEL_NAME: str = "ProsusAI/finbert"
     FINBERT_BATCH_SIZE: int = 32
 
-    # =============================================================================
     # CONFIGURATION CRAWLING
-    # =============================================================================
     PRICE_INTERVAL: str = "1m"  # Intervalle des prix
     PRICE_PERIOD: str = "1d"  # Période des données
     NEWS_INTERVAL: int = 240  # 4 minutes en secondes
@@ -71,9 +63,7 @@ class SentinelConstants:
         "https://feeds.bloomberg.com/markets/news.rss",
     ]
 
-    # =============================================================================
     # SEUILS DE TRADING ADAPTATIFS
-    # =============================================================================
     # Seuils de base (volatilité normale)
     BASE_BUY_THRESHOLD: float = 0.1  # Seuil d'achat de base
     BASE_SELL_THRESHOLD: float = -0.1  # Seuil de vente de base
@@ -94,9 +84,7 @@ class SentinelConstants:
     VOLUME_RATIO_LOW: float = 0.8  # Volume faible
     VOLUME_RATIO_HIGH: float = 1.5  # Volume élevé
 
-    # =============================================================================
     # CHEMINS DE DONNÉES - STRUCTURE UNIFIÉE
-    # =============================================================================
     PROJECT_ROOT: Path = Path(__file__).parent.parent
     DATA_ROOT: Path = PROJECT_ROOT / "data"
 
@@ -116,73 +104,55 @@ class SentinelConstants:
     LOGS_DIR: Path = DATA_ROOT / "logs"
     TRADING_DIR: Path = DATA_ROOT / "trading"
 
-    # =============================================================================
     # CONFIGURATION FUSION ADAPTATIVE
-    # =============================================================================
     FUSION_MODE: str = "adaptive"  # "fixed" ou "adaptive"
     BASE_PRICE_WEIGHT: float = 0.6
     BASE_SENTIMENT_WEIGHT: float = 0.4
     MAX_WEIGHT_CHANGE: float = 0.1
     REGULARIZATION_FACTOR: float = 0.1
 
-    # =============================================================================
     # CONFIGURATION TRANSFORMER NVDA (EN ATTENTE)
-    # =============================================================================
     TRANSFORMER_NVDA_ENABLED: bool = False  # Pas encore implémenté
     TRANSFORMER_SEQUENCE_LENGTH: int = 50
     TRANSFORMER_HIDDEN_SIZE: int = 128
     TRANSFORMER_NUM_LAYERS: int = 6
     TRANSFORMER_NUM_ATTENTION_HEADS: int = 8
 
-    # =============================================================================
     # CONFIGURATION API
-    # =============================================================================
     API_TIMEOUT: int = 30  # Timeout API en secondes
     API_RETRY_MAX: int = 3  # Nombre max de tentatives
     API_RETRY_DELAY: float = 1.0  # Délai entre tentatives
 
-    # =============================================================================
     # CONFIGURATION TESTS
-    # =============================================================================
     TEST_DATA_SIZE: int = 1000
     TEST_SEQUENCE_LENGTH: int = 20
     TEST_BATCH_SIZE: int = 16
 
-    # =============================================================================
     # CONFIGURATION LOGGING
-    # =============================================================================
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
     LOG_ROTATION: str = "1 day"
     LOG_RETENTION: str = "30 days"
 
-    # =============================================================================
     # MÉTRIQUES DE PERFORMANCE CIBLES
-    # =============================================================================
     TARGET_GLOBAL_SCORE: float = 0.75  # >75% (amélioration de 70.8%)
     TARGET_DIRECTION_ACCURACY: float = 0.55  # >55% (amélioration de 49.7%)
     TARGET_LATENCY_MS: int = 1000  # <1 seconde
     TARGET_MAPE: float = 0.005  # <0.5% (amélioration de 0.87%)
 
-    # =============================================================================
     # CONFIGURATION FRONTEND
-    # =============================================================================
     GUI_HOST: str = "127.0.0.1"
     GUI_PORT: int = 7867
     GUI_TITLE: str = "Sentinel2 - Trading Algorithmique TDD"
     GUI_THEME: str = "default"
 
-    # =============================================================================
     # CONFIGURATION API
-    # =============================================================================
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     API_TITLE: str = "Sentinel2 API"
     API_VERSION: str = "2.0.0"
 
-    # =============================================================================
     # MÉTHODES UTILITAIRES
-    # =============================================================================
 
     @classmethod
     def get_data_path(cls, data_type: str = None, ticker: str = None, interval: str = None) -> Path:
