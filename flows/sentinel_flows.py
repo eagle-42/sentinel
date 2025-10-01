@@ -11,7 +11,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-# Ajouter le projet au path
+# Ajoute le projet au path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -23,7 +23,7 @@ def refresh_prices_15min_task():
     """Task: Rafraîchir les prix 15min (SPY) via Finnhub API"""
     logger.info("📊 Refresh prix 15min (Finnhub)...")
     try:
-        # Utiliser Finnhub pour les données temps réel
+        # Utilise Finnhub pour les données temps réel
         result = subprocess.run(
             ["uv", "run", "python", "scripts/finnhub_scraper.py"],
             cwd=project_root,
@@ -95,28 +95,7 @@ def trading_decision_task(force: bool = False):
         raise
 
 
-@task(name="update-historical-prices", retries=1, retry_delay_seconds=60, log_prints=True)
-def update_historical_prices_task():
-    """Task: Mettre à jour prix historiques journaliers (1D)"""
-    logger.info("📈 Update prix historiques 1D...")
-    try:
-        result = subprocess.run(
-            ["uv", "run", "python", "scripts/update_prices_simple.py"],
-            cwd=project_root,
-            capture_output=True,
-            text=True,
-            timeout=600
-        )
-        
-        if result.returncode == 0:
-            logger.info("✅ Prix historiques mis à jour")
-            return {"success": True, "output": result.stdout}
-        else:
-            logger.error(f"❌ Erreur historiques: {result.stderr}")
-            return {"success": False, "error": result.stderr}
-    except Exception as e:
-        logger.error(f"❌ Exception historiques: {e}")
-        raise
+# Task update_historical_prices supprimé - Finnhub fournit les données temps réel
 
 
 # FLOWS - Pipelines orchestrés
@@ -173,16 +152,7 @@ def trading_flow(force: bool = False):
     }
 
 
-@flow(name="📈 Historical Update Flow", log_prints=True)
-def historical_update_flow():
-    """
-    Flow: Mise à jour prix historiques 1D
-    Exécution: 1 fois par jour (après fermeture marché)
-    """
-    logger.info("🚀 Démarrage Historical Update Flow")
-    result = update_historical_prices_task()
-    logger.info("✅ Historical Update Flow terminé")
-    return result
+# Flow historical_update_flow supprimé - Finnhub temps réel suffit
 
 
 @flow(name="🚀 Full System Flow", log_prints=True)
