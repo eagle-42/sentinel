@@ -41,8 +41,8 @@ class PriceRefresher:
         import random
         import time
 
-        max_retries = 3
-        base_delay = 5  # secondes
+        max_retries = 5  # Augmenté à 5 tentatives
+        base_delay = 2  # Réduit le délai de base
 
         for attempt in range(max_retries):
             try:
@@ -53,8 +53,14 @@ class PriceRefresher:
 
                 logger.info(f"📈 Récupération {ticker} depuis Yahoo Finance ({period}, {interval})")
 
-                ticker_obj = yf.Ticker(ticker)
-                data = ticker_obj.history(period=period, interval=interval)
+                # Changer user agent à chaque tentative pour éviter le blocage
+                headers = {
+                    'User-Agent': f'Mozilla/5.0 (attempt {attempt})'
+                }
+                ticker_obj = yf.Ticker(ticker, session=None)  # Nouvelle session
+                
+                # Essayer download direct si history échoue
+                data = ticker_obj.history(period=period, interval=interval, timeout=15)
 
                 if data.empty:
                     logger.warning(f"⚠️ Aucune donnée Yahoo pour {ticker} (tentative {attempt + 1})")
