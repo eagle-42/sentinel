@@ -90,7 +90,17 @@ class TradingPipeline:
                 return None
 
             # Trier par date et prendre les dernières données
-            data = data.sort_values("ts_utc").tail(20)  # 20 dernières barres
+            # Pour LSTM, on a besoin de 216+ barres
+            data = data.sort_values("ts_utc").tail(500)  # 500 dernières barres (assez pour LSTM)
+            
+            # Renommer colonnes pour compatibilité
+            data = data.rename(columns={
+                'open': 'Open',
+                'high': 'High', 
+                'low': 'Low',
+                'close': 'Close'
+            })
+            
             return data
 
         except Exception as e:
@@ -133,8 +143,9 @@ class TradingPipeline:
 
         try:
             # Calculer le retour sur la période
-            current_price = prices["close"].iloc[-1]
-            previous_price = prices["close"].iloc[-2]
+            close_col = 'Close' if 'Close' in prices.columns else 'close'
+            current_price = prices[close_col].iloc[-1]
+            previous_price = prices[close_col].iloc[-2]
 
             # Retour simple
             price_return = (current_price - previous_price) / previous_price
@@ -150,8 +161,47 @@ class TradingPipeline:
             return 0.0
 
     def get_lstm_prediction(self, ticker: str, prices: pd.DataFrame) -> Optional[float]:
-        """Récupère la prédiction LSTM pour un ticker (nouveau modèle RETURNS)"""
+        """Récupère la prédiction LSTM pour un ticker (modèle 4 RETURNS)"""
         try:
+            # Préparer les données comme le modèle attend : 4 RETURNS
+            # Open_RETURN, High_RETURN, Low_RETURN, TARGET (Close_RETURN)
+            
+            # Vérifier colonnes nécessaires
+            required_cols = ['Open', 'High', 'Low', 'Close']
+            prices_cols = [col for col in required_cols if col in prices.columns or col.lower() in prices.columns or col.upper() in prices.columns]
+            
+            if len(prices_cols) < 4:
+                logger.warning(f"⚠️ Colonnes OHLC manquantes pour {ticker}")
+                return None
+            
+            # Normaliser noms colonnes
+            df = prices.copy()
+            df.columns = df.columns.str.title()  # Open, High, Low, Close
+            
+            logger.debug(f"📊 Avant pct_change: {len(df)} lignes, colonnes: {df.columns.tolist()}")
+            logger.debug(f"📊 Colonnes OHLC présentes: Open={('Open' in df.columns)}, High={('High' in df.columns)}, Low={('Low' in df.columns)}, Close={('Close' in df.columns)}")
+            
+            # Calculer les RETURNS
+            df['Open_RETURN'] = df['Open'].pct_change()
+            df['High_RETURN'] = df['High'].pct_change()
+            df['Low_RETURN'] = df['Low'].pct_change()
+            df['TARGET'] = df['Close'].pct_change()
+            
+            # Supprimer NaN SEULEMENT sur les colonnes RETURNS (pas tout le DataFrame)
+            df = df.dropna(subset=['Open_RETURN', 'High_RETURN', 'Low_RETURN', 'TARGET'])
+            
+            logger.debug(f"📊 Après dropna: {len(df)} lignes")
+            
+            if len(df) < 220:  # Besoin de 216 + marge
+                logger.warning(f"⚠️ Pas assez de données pour {ticker}: {len(df)} < 220")
+                return None
+            
+            # Sélectionner seulement les colonnes RETURNS
+            features_df = df[['Open_RETURN', 'High_RETURN', 'Low_RETURN', 'TARGET']].copy()
+            
+            # Normaliser noms colonnes en MAJUSCULES
+            features_df.columns = features_df.columns.str.upper()
+            
             # Initialiser le prédicteur
             predictor = PricePredictor(ticker)
 
@@ -160,30 +210,41 @@ class TradingPipeline:
                 logger.warning(f"⚠️ Impossible de charger le modèle pour {ticker}")
                 return None
 
-            # Utiliser la méthode predict() du nouveau modèle
-            # Le modèle attend un DataFrame avec CLOSE
-            result = predictor.predict(prices, horizon=1)
+            # Utiliser la méthode predict_with_technical_features (qui attend RETURNS)
+            # Créer séquences manuellement
+            from sklearn.preprocessing import MinMaxScaler
+            scaler = predictor.scaler
             
-            if "error" in result:
-                logger.warning(f"⚠️ Erreur prédiction: {result['error']}")
+            features_scaled = scaler.transform(features_df.values)
+            X, y = predictor.create_sequences(features_scaled)
+            
+            if X is None or len(X) == 0:
+                logger.warning(f"⚠️ Impossible de créer séquences pour {ticker}")
                 return None
             
-            # Récupérer la première prédiction future
-            predictions = result.get("predictions", [])
-            if not predictions:
-                logger.warning(f"⚠️ Aucune prédiction générée")
-                return None
+            # Prédiction
+            import torch
+            with torch.no_grad():
+                sequence = torch.FloatTensor(X[-1:]).to(predictor.device)
+                pred_scaled = predictor.model(sequence).cpu().numpy()[0, 0]
             
-            # Retourner le signal comme variation relative
-            current_price = prices['CLOSE'].iloc[-1] if 'CLOSE' in prices.columns else prices['Close'].iloc[-1]
-            predicted_price = predictions[0]
-            signal = (predicted_price - current_price) / current_price
+            # Dénormaliser
+            dummy = [[pred_scaled, 0, 0, 0]]
+            pred_return = scaler.inverse_transform(dummy)[0, 0]
             
-            logger.debug(f"🔮 Prédiction LSTM {ticker}: ${current_price:.2f} -> ${predicted_price:.2f} (signal: {signal:.3f})")
+            # Le signal = return prédit (déjà en %)
+            signal = pred_return
+            
+            current_price = df['Close'].iloc[-1]
+            predicted_price = current_price * (1 + pred_return)
+            
+            logger.debug(f"🔮 Prédiction LSTM {ticker}: ${current_price:.2f} -> ${predicted_price:.2f} (return: {pred_return:.3%})")
             return signal
 
         except Exception as e:
             logger.error(f"❌ Erreur prédiction LSTM {ticker}: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return None
 
     def make_trading_decision(
