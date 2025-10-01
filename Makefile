@@ -26,7 +26,7 @@ install: ## Installer les dépendances
 	uv sync
 	@echo "$(GREEN)✅ Dépendances installées$(NC)"
 
-start: ## Démarrer l'application COMPLÈTE (Ollama + Prefect + Worker + Orchestrateur + Streamlit)
+start: ## Démarrer l'application COMPLÈTE (Ollama + Prefect + Worker + Streamlit)
 	@echo "$(YELLOW)🚀 Démarrage COMPLET de Sentinel2...$(NC)"
 	@make start-ollama
 	@echo "$(YELLOW)⏳ Attente démarrage Ollama...$(NC)"
@@ -37,13 +37,11 @@ start: ## Démarrer l'application COMPLÈTE (Ollama + Prefect + Worker + Orchest
 	@make start-prefect-worker
 	@echo "$(YELLOW)⏳ Attente démarrage worker...$(NC)"
 	@sleep 3
-	@make start-orchestrator
-	@echo "$(YELLOW)⏳ Attente démarrage orchestrateur...$(NC)"
-	@sleep 2
 	@make start-streamlit
 	@echo "$(GREEN)✅ Application démarrée !$(NC)"
 	@echo "$(GREEN)   Streamlit: http://localhost:$(STREAMLIT_PORT)$(NC)"
 	@echo "$(GREEN)   Prefect:   http://localhost:4200$(NC)"
+	@echo "$(YELLOW)   Note: Orchestration gérée par Prefect Worker$(NC)"
 
 start-ollama: ## Démarrer Ollama en arrière-plan
 	@echo "$(YELLOW)🧠 Démarrage d'Ollama...$(NC)"
@@ -93,7 +91,6 @@ start-streamlit: ## Démarrer Streamlit
 stop: ## Arrêter l'application COMPLÈTE
 	@echo "$(YELLOW)🛑 Arrêt COMPLET de Sentinel2...$(NC)"
 	@make stop-streamlit
-	@make stop-orchestrator
 	@make stop-prefect
 	@make stop-ollama
 	@echo "$(GREEN)✅ Application complètement arrêtée$(NC)"
@@ -142,13 +139,6 @@ status: ## Vérifier le statut de l'application COMPLÈTE
 		echo "  $(GREEN)✅ En cours d'exécution$(NC)"; \
 	else \
 		echo "  $(RED)❌ Arrêté (REQUIS pour exécuter flows!)$(NC)"; \
-	fi
-	@echo ""
-	@echo "$(YELLOW)Orchestrateur:$(NC)"
-	@if pgrep -f "sentinel_main.py" > /dev/null; then \
-		echo "  $(GREEN)✅ En cours d'exécution$(NC)"; \
-	else \
-		echo "  $(RED)❌ Arrêté$(NC)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)Streamlit:$(NC)"
