@@ -114,6 +114,10 @@ clean-all: clean ## Nettoyage complet (supprime .venv)
 	@rm -rf $(VENV_DIR) 2>/dev/null || true
 	@echo "$(GREEN)✅ Nettoyage complet terminé$(NC)"
 
+clean-logs: ## Nettoyer les logs et décisions (INTERACTIF)
+	@echo "$(YELLOW)🧹 Nettoyage des logs et décisions...$(NC)"
+	@bash scripts/clean_logs.sh
+
 dev: ## Mode développement (sans Ollama)
 	@echo "$(YELLOW)🔧 Mode développement...$(NC)"
 	@make stop
