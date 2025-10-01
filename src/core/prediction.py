@@ -71,6 +71,7 @@ class PricePredictor:
         self.scaler = None
         self.is_loaded = False
         self.sequence_length = CONSTANTS.LSTM_SEQUENCE_LENGTH
+        self.feature_columns = []  # Sera chargé depuis le modèle
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"🔮 Prédicteur CLOSE ONLY initialisé pour {self.ticker}")
 
@@ -108,6 +109,7 @@ class PricePredictor:
             self.model.load_state_dict(model_data["model_state_dict"])
             self.scaler = model_data["scaler"]
             self.sequence_length = model_data["sequence_length"]
+            self.feature_columns = model_data.get("feature_cols", [])  # Charger feature_cols du modèle
             self.model.eval()
             self.is_loaded = True
 
