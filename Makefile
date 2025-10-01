@@ -26,7 +26,7 @@ install: ## Installer les dépendances
 	uv sync
 	@echo "$(GREEN)✅ Dépendances installées$(NC)"
 
-start: ## Démarrer l'application COMPLÈTE (Ollama + Prefect + Orchestrateur + Streamlit)
+start: ## Démarrer l'application COMPLÈTE (Ollama + Prefect + Worker + Orchestrateur + Streamlit)
 	@echo "$(YELLOW)🚀 Démarrage COMPLET de Sentinel2...$(NC)"
 	@make start-ollama
 	@echo "$(YELLOW)⏳ Attente démarrage Ollama...$(NC)"
@@ -34,6 +34,9 @@ start: ## Démarrer l'application COMPLÈTE (Ollama + Prefect + Orchestrateur + 
 	@make start-prefect-server
 	@echo "$(YELLOW)⏳ Attente démarrage Prefect...$(NC)"
 	@sleep 5
+	@make start-prefect-worker
+	@echo "$(YELLOW)⏳ Attente démarrage worker...$(NC)"
+	@sleep 3
 	@make start-orchestrator
 	@echo "$(YELLOW)⏳ Attente démarrage orchestrateur...$(NC)"
 	@sleep 2
@@ -58,6 +61,15 @@ start-prefect-server: ## Démarrer le serveur Prefect
 		echo "$(GREEN)✅ Prefect serveur démarré$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️ Prefect déjà en cours d'exécution$(NC)"; \
+	fi
+
+start-prefect-worker: ## Démarrer le worker Prefect
+	@echo "$(YELLOW)🤖 Démarrage worker Prefect...$(NC)"
+	@if ! pgrep -f "prefect worker" > /dev/null; then \
+		PREFECT_API_URL=http://localhost:4200/api nohup uv run prefect worker start --pool sentinel > data/logs/prefect_worker.log 2>&1 & \
+		echo "$(GREEN)✅ Prefect worker démarré$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️ Worker déjà en cours d'exécution$(NC)"; \
 	fi
 
 start-orchestrator: ## Démarrer l'orchestrateur (sentinel_main)
@@ -123,6 +135,13 @@ status: ## Vérifier le statut de l'application COMPLÈTE
 		echo "  $(GREEN)   Dashboard: http://localhost:4200$(NC)"; \
 	else \
 		echo "  $(RED)❌ Arrêté$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)Prefect Worker:$(NC)"
+	@if pgrep -f "prefect worker" > /dev/null; then \
+		echo "  $(GREEN)✅ En cours d'exécution$(NC)"; \
+	else \
+		echo "  $(RED)❌ Arrêté (REQUIS pour exécuter flows!)$(NC)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)Orchestrateur:$(NC)"
