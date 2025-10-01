@@ -150,20 +150,8 @@ class TradingPipeline:
             return 0.0
 
     def get_lstm_prediction(self, ticker: str, prices: pd.DataFrame) -> Optional[float]:
-        """Récupère la prédiction LSTM pour un ticker"""
+        """Récupère la prédiction LSTM pour un ticker (nouveau modèle RETURNS)"""
         try:
-            # Charger les données de features techniques
-            features_path = CONSTANTS.get_data_path("features", ticker)
-            if not features_path.exists():
-                logger.warning(f"⚠️ Données de features non trouvées pour {ticker}")
-                return None
-
-            # Charger les features
-            features_data = pd.read_parquet(features_path)
-            if features_data.empty:
-                logger.warning(f"⚠️ Données de features vides pour {ticker}")
-                return None
-
             # Initialiser le prédicteur
             predictor = PricePredictor(ticker)
 
@@ -172,28 +160,27 @@ class TradingPipeline:
                 logger.warning(f"⚠️ Impossible de charger le modèle pour {ticker}")
                 return None
 
-            # Préparer les features
-            features = predictor.prepare_features(features_data)
-
-            if features is None:
-                logger.warning(f"⚠️ Impossible de préparer les features pour {ticker}")
+            # Utiliser la méthode predict() du nouveau modèle
+            # Le modèle attend un DataFrame avec CLOSE
+            result = predictor.predict(prices, horizon=1)
+            
+            if "error" in result:
+                logger.warning(f"⚠️ Erreur prédiction: {result['error']}")
                 return None
-
-            # Créer les séquences
-            X, y = predictor.create_sequences(features)
-
-            if X is None or len(X) == 0:
-                logger.warning(f"⚠️ Impossible de créer les séquences pour {ticker}")
+            
+            # Récupérer la première prédiction future
+            predictions = result.get("predictions", [])
+            if not predictions:
+                logger.warning(f"⚠️ Aucune prédiction générée")
                 return None
-
-            # Faire la prédiction directe
-            with torch.no_grad():
-                sequence = torch.FloatTensor(X[-1:]).to(predictor.device)
-                pred = predictor.model(sequence)
-                prediction_signal = float(pred.cpu().numpy()[0, 0])
-
-            logger.debug(f"🔮 Prédiction LSTM {ticker}: {prediction_signal:.3f}")
-            return prediction_signal
+            
+            # Retourner le signal comme variation relative
+            current_price = prices['CLOSE'].iloc[-1] if 'CLOSE' in prices.columns else prices['Close'].iloc[-1]
+            predicted_price = predictions[0]
+            signal = (predicted_price - current_price) / current_price
+            
+            logger.debug(f"🔮 Prédiction LSTM {ticker}: ${current_price:.2f} -> ${predicted_price:.2f} (signal: {signal:.3f})")
+            return signal
 
         except Exception as e:
             logger.error(f"❌ Erreur prédiction LSTM {ticker}: {e}")
@@ -312,13 +299,13 @@ class TradingPipeline:
             current_minute = now_est.minute
             return current_minute in [30, 45, 0]  # 9:30, 9:45, 10:00, 10:15, etc.
 
-    def run_trading_pipeline(self) -> Dict[str, Any]:
+    def run_trading_pipeline(self, force: bool = False) -> Dict[str, Any]:
         """Exécute le pipeline de trading complet"""
         logger.info("🤖 === PIPELINE DE TRADING ===")
         start_time = datetime.now()
 
         # Vérifier si on est dans une fenêtre de décision valide (15 minutes)
-        if not self._is_decision_window():
+        if not force and not self._is_decision_window():
             logger.info("⏰ Pas dans une fenêtre de décision (15min) - Attente")
             return {
                 "success": True,
@@ -326,6 +313,9 @@ class TradingPipeline:
                 "tickers_processed": 0,
                 "duration": (datetime.now() - start_time).total_seconds(),
             }
+        
+        if force:
+            logger.info("🔧 Mode FORCE activé - Génération décision immédiate")
 
         decisions = []
         successful_tickers = 0
@@ -412,14 +402,20 @@ class TradingPipeline:
 
 def main():
     """Fonction principale"""
+    import sys
+    force = "--force" in sys.argv
+    
     logger.info("🚀 Démarrage du pipeline de trading")
+    if force:
+        logger.info("🔧 Mode FORCE détecté")
 
     try:
         pipeline = TradingPipeline()
-        result = pipeline.run_trading_pipeline()
+        result = pipeline.run_trading_pipeline(force=force)
 
-        if result["status"] == "success":
+        if result.get("success", False):
             logger.info("✅ Pipeline de trading terminé avec succès")
+            logger.info(f"   Décisions: {len(result.get('decisions', []))}")
             return 0
         else:
             logger.warning("⚠️ Pipeline de trading terminé sans données")
