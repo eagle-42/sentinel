@@ -36,4 +36,9 @@ env/
 cursorrules
 .cursor/
 
-README.mdREADME.md
+# Streamlit
+.streamlit/
+
+# Backup files
+*_backup.py
+*.backup
