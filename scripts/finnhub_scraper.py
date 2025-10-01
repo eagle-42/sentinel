@@ -5,6 +5,7 @@ API gratuite avec 60 appels/minute - PARFAIT pour nous !
 """
 
 import sys
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
@@ -13,13 +14,17 @@ import time
 import pandas as pd
 import requests
 from loguru import logger
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
 
 # Ajouter src au path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 # Clé API Finnhub gratuite (60 req/min)
-FINNHUB_API_KEY = "ctbgr49r01qmaqhhc9g0ctbgr49r01qmaqhhc9gg"  # Clé demo
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d31u149r01qsprr2kf10d31u149r01qsprr2kf1g")
 
 
 class FinnhubScraper:

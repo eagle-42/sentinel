@@ -20,23 +20,23 @@ sys.path.insert(0, str(project_root))
 
 @task(name="refresh-prices-15min", retries=2, retry_delay_seconds=30, log_prints=True)
 def refresh_prices_15min_task():
-    """Task: Rafraîchir les prix 15min (SPY)"""
-    logger.info("📊 Refresh prix 15min...")
+    """Task: Rafraîchir les prix 15min (SPY) via Finnhub API"""
+    logger.info("📊 Refresh prix 15min (Finnhub)...")
     try:
-        # Exécuter le script directement
+        # Utiliser Finnhub pour les données temps réel
         result = subprocess.run(
-            ["uv", "run", "python", "scripts/refresh_prices.py"],
+            ["uv", "run", "python", "scripts/finnhub_scraper.py"],
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=60  # Réduit à 60s (API rapide)
         )
         
         if result.returncode == 0:
-            logger.info("✅ Prix 15min rafraîchis")
+            logger.info("✅ Prix 15min rafraîchis (Finnhub)")
             return {"success": True, "output": result.stdout}
         else:
-            logger.error(f"❌ Erreur refresh prix: {result.stderr}")
+            logger.error(f"❌ Erreur refresh prix Finnhub: {result.stderr}")
             return {"success": False, "error": result.stderr}
     except Exception as e:
         logger.error(f"❌ Exception refresh prix: {e}")
