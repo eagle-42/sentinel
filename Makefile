@@ -201,5 +201,8 @@ test: ## Lancer les tests
 	uv run python -m pytest tests/ -v
 	@echo "$(GREEN)✅ Tests terminés$(NC)"
 
+check-prod: ## Vérifier configuration production
+	@bash scripts/check_production.sh
+
 # Commande par défaut
 .DEFAULT_GOAL := help
