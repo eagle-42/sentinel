@@ -1,6 +1,10 @@
 # 🚀 Sentinel2 - Système de Trading Algorithmique
 
-**Version 2.0** | **Status: 🟢 Production Ready** | **Orchestration: Prefect**
+**Version 2.0** | **Status: 🟢 Production Ready** | **Orchestration: Prefect** | **License: 🔒 Proprietary**
+
+> **⚠️ LICENCE PROPRIÉTAIRE - ACCÈS STRICTEMENT RESTREINT ⚠️**  
+> **Copyright © 2025 Eagle42 - Tous droits réservés**  
+> Utilisation interdite sans autorisation écrite préalable.
 
 Système de trading algorithmique automatisé avec ML, sentiment analysis et monitoring en temps réel.
 
@@ -344,7 +348,23 @@ uv run pytest --cov=src --cov-report=html
 
 ## 📄 **LICENSE**
 
-Ce projet est sous licence MIT.
+**⚠️ LICENCE PROPRIÉTAIRE - TOUS DROITS RÉSERVÉS ⚠️**
+
+Ce projet est sous **licence propriétaire restrictive**.
+
+### **Restrictions d'accès**
+- ❌ **Utilisation strictement interdite** sans autorisation écrite préalable
+- ❌ Pas de copie, modification, ou distribution
+- ❌ Pas d'usage commercial
+- ❌ Confidentialité absolue requise
+
+### **Accès autorisé uniquement**
+- ✅ Personnes avec autorisation explicite de Eagle42
+- ✅ Accès via lien sécurisé uniquement
+- ✅ Usage personnel et non-commercial
+
+**Copyright © 2025 Eagle42 - Sentinel2**  
+Voir `LICENSE` pour les détails complets.
 
 ---
 
