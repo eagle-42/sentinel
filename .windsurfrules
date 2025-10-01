@@ -1,0 +1,418 @@
+# 🚀 Règles Windsurf/Cascade pour Sentinel2
+
+**Projet** : Sentinel2 - Système de Trading Algorithmique TDD  
+**Version** : 2.0  
+**Assistant** : Cascade (powered by Claude via Windsurf)  
+**Statut** : ✅ **PROJET FINALISÉ ET VALIDÉ**
+
+---
+
+## 📋 **RÈGLES FONDAMENTALES**
+
+### **1. Architecture TDD Stricte**
+- **Tests AVANT implémentation** : Toujours écrire les tests en premier
+- **100% de succès requis** : Aucun code ne passe si les tests échouent
+- **Couverture minimale** : 80% (actuellement 43%, en amélioration)
+- **Types de tests** : Unit (99 tests), Integration (11 tests), E2E
+
+### **2. Constantes et Configuration**
+- **❌ JAMAIS de variables en brut** : Toujours utiliser `src/constants.py`
+- **❌ JAMAIS de chemins en brut** : Utiliser `CONSTANTS.get_data_path()`
+- **✅ Configuration centralisée** : `src/constants.py` + `config/`
+- **✅ Variables d'environnement** : Toutes dans `.env` (jamais en dur)
+
+### **3. Architecture Modulaire**
+- **Fonctions < 100 lignes** : Refactoriser si dépassement
+- **Classes spécialisées** : Une responsabilité par classe
+- **Séparation des responsabilités** : Respect du principe SOLID
+- **Imports organisés** : Standard → Tiers → Local (toujours en haut)
+
+---
+
+## 🏗️ **STRUCTURE DU PROJET**
+
+```
+sentinel2/
+├── src/
+│   ├── core/          # Modules fondamentaux (fusion, sentiment, prediction)
+│   ├── data/          # Gestion des données (storage, crawler)
+│   ├── gui/           # Interface Streamlit
+│   ├── models/        # Modèles ML (LSTM, Transformer)
+│   ├── tests/         # Tests TDD complets
+│   └── constants.py   # TOUTES les constantes du projet
+├── config/            # Configuration (config.json, models.json, settings.py)
+├── data/              # Données (historical, realtime, models, logs, trading)
+├── scripts/           # Scripts de maintenance (14 scripts)
+└── .env               # Variables d'environnement (JAMAIS commité)
+```
+
+---
+
+## 🚨 **INTERDICTIONS ABSOLUES**
+
+### **❌ JAMAIS DE SIMULATIONS (CRITIQUE)**
+- **❌ JAMAIS de prix simulés** : Uniquement données réelles du marché
+- **❌ JAMAIS de données artificielles** : Pas de fallback avec simulation
+- **❌ JAMAIS de compensation** : Pas de stratégie de compensation artificielle
+- **✅ SEULE EXCEPTION** : Tests unitaires peuvent utiliser des mocks
+
+### **❌ JAMAIS DE PATCHING ADDITIONNEL**
+- **❌ JAMAIS de fichiers temporaires** : Corriger les imports existants
+- **❌ JAMAIS de chemins cassés** : Utiliser les modules existants
+- **✅ TOUJOURS maintenir la cohérence** : Respect de l'architecture
+
+### **❌ JAMAIS D'IMPORTS DANS LE CODE**
+- **❌ JAMAIS dans les fonctions** : Tous les imports en haut du fichier
+- **❌ JAMAIS d'imports conditionnels** : Pas d'imports dynamiques
+- **✅ TOUJOURS organisés** : Standard, tiers, local dans cet ordre
+
+---
+
+## 🔧 **RÈGLES DE DÉVELOPPEMENT**
+
+### **Avant Modification**
+1. **Lire le README.md** : Comprendre l'architecture actuelle
+2. **Vérifier les tests** : Tous doivent passer (100%)
+3. **Consulter constants.py** : Utiliser les constantes existantes
+4. **Backup si nécessaire** : Sauvegarder avant changements majeurs
+
+### **Pendant Modification**
+1. **Tests d'abord** : Écrire le test avant le code
+2. **Petits commits** : Modifications incrémentales
+3. **Respect de l'architecture** : Suivre la structure existante
+4. **Documentation inline** : Docstrings et type hints
+
+### **Après Modification**
+1. **Tests complets** : `uv run python scripts/test_system.py`
+2. **Linting** : `ruff check` et `black` (si disponibles)
+3. **Type checking** : `mypy` (si disponible)
+4. **Documentation** : Mettre à jour README si nécessaire
+
+---
+
+## 📊 **STOCKAGE PARQUET**
+
+### **Règle Critique : UN SEUL FICHIER PAR TYPE**
+- **❌ PAS de doublons** : Ne jamais créer plusieurs fichiers parquet
+- **✅ Sauvegarde incrémentale** : Ajouter au fichier existant
+- **✅ Cohérence** : `spy_1min.parquet`, `spy_news.parquet`, etc.
+- **✅ Performance** : Éviter la fragmentation des données
+
+### **Structure des Données**
+```
+data/
+├── historical/
+│   ├── yfinance/      # Données historiques Yahoo Finance
+│   └── features/      # Features calculées
+├── realtime/
+│   ├── prices/        # Prix temps réel (refresh 15min)
+│   ├── news/          # News temps réel (refresh 4min)
+│   └── sentiment/     # Sentiment analysé (FinBERT)
+├── models/            # Modèles ML entraînés (LSTM, Transformer)
+├── logs/              # Logs système
+└── trading/
+    └── decisions_log/ # Décisions de trading (BUY/WAIT/SELL)
+```
+
+---
+
+## 🧪 **TESTS TDD**
+
+### **Structure**
+```
+src/tests/
+├── unit/          # Tests unitaires rapides
+├── integration/   # Tests d'assemblage services
+└── e2e/          # Tests end-to-end complets
+```
+
+### **Commandes**
+```bash
+# Tests complets système
+uv run python scripts/test_system.py
+
+# Tests unitaires
+uv run pytest src/tests/unit/ -v
+
+# Tests d'intégration
+uv run pytest src/tests/integration/ -v
+
+# Tests avec couverture
+uv run pytest --cov=src --cov-report=html
+```
+
+### **Règles de Test**
+- **Nommage** : `test_<fonction>_<scenario>`
+- **Documentation** : Expliquer le test et les attentes
+- **Isolation** : Chaque test indépendant
+- **Performance** : Suite complète < 30 secondes
+
+---
+
+## 🖥️ **INTERFACE GUI (STREAMLIT)**
+
+### **Structure**
+```
+src/gui/
+├── main.py           # Point d'entrée Streamlit
+├── pages/            # Pages de l'interface
+│   ├── production_page.py
+│   ├── analysis_page.py
+│   └── logs_page.py
+├── components/       # Composants réutilisables
+└── services/         # Services métier
+    ├── data_service.py
+    ├── chart_service.py
+    ├── prediction_service.py
+    └── llm_service.py
+```
+
+### **Règles GUI**
+- **Séparation stricte** : UI dans pages, logique dans services
+- **Cache intelligent** : `@st.cache_data` avec TTL
+- **Chargement paresseux** : Données chargées si nécessaire
+- **Responsive** : Adaptation mobile et desktop
+
+### **Démarrage**
+```bash
+# Mode production (avec Ollama LLM)
+caffeinate -d ./scripts/sentinel2.sh prod
+
+# Mode développement (sans Ollama)
+./scripts/sentinel2.sh dev
+
+# Manuel
+uv run streamlit run src/gui/main.py --server.port 8501
+```
+
+---
+
+## 📋 **FEATURES IMPLÉMENTÉES (8/9)**
+
+### **Feature 1 : Configuration Centralisée** ⚙️
+- Module : `config/` + `src/constants.py`
+- Tests : `src/tests/test_config.py`
+- Statut : ✅ Validé
+
+### **Feature 2 : Stockage Unifié** 💾
+- Module : `src/data/storage.py`, `src/data/unified_storage.py`
+- Tests : `TestParquetStorage`, `TestDataStorage`
+- Statut : ✅ Validé
+
+### **Feature 3 : Collecte de Données** 📊
+- Module : `src/data/crawler.py`
+- Scripts : `refresh_prices.py`, `refresh_news.py`
+- Statut : ✅ Validé
+
+### **Feature 4 : Analyse de Sentiment** 💭
+- Module : `src/core/sentiment.py` (FinBERT)
+- Scripts : `sentiment_service.py`
+- Statut : ✅ Validé
+
+### **Feature 5 : Prédictions LSTM** 🤖
+- Module : `src/core/prediction.py`
+- Notebooks : `src/notebooks/lstm_analysis.ipynb`
+- Statut : ✅ Validé
+
+### **Feature 6 : Prédictions Transformer** 🧠
+- Module : `src/core/transformer.py` (NVDA)
+- Statut : ⚠️ EN DÉVELOPPEMENT
+
+### **Feature 7 : Fusion Adaptative** 🔄
+- Module : `src/core/fusion.py`
+- Logs : `data/trading/decisions_log/`
+- Statut : ✅ Validé
+
+### **Feature 8 : Interface Utilisateur** 🖥️
+- Module : `src/gui/`
+- URL : http://localhost:8501
+- Statut : ✅ Validé
+
+### **Feature 9 : Scripts de Maintenance** 🔧
+- Module : `scripts/` (14 scripts)
+- Script principal : `sentinel_main.py`
+- Statut : ✅ Validé
+
+---
+
+## ⏰ **PROCESSUS DE TRADING**
+
+### **Intervalles de Collecte**
+- **Prix** : Toutes les 15 minutes (Yahoo Finance + Polygon API)
+- **News** : Toutes les 4 minutes (RSS + NewsAPI)
+- **Fusion** : Toutes les 12 minutes (sentiment + prédictions)
+
+### **Processus de Décision**
+1. **Collecte Prix** → `data/realtime/prices/`
+2. **Collecte News** → `data/realtime/news/`
+3. **Analyse Sentiment** → `data/realtime/sentiment/`
+4. **Prédictions** → `data/models/` (LSTM/Transformer)
+5. **Fusion** → Décision BUY/WAIT/SELL
+6. **Sauvegarde** → `data/trading/decisions_log/`
+7. **Synthèse Phi3** → Explication de la décision
+8. **Frontend** → Affichage temps réel avec confiance
+
+### **Seuils de Décision**
+- **BUY** : Signal > 0.3
+- **SELL** : Signal < -0.3
+- **HOLD** : Signal entre -0.3 et 0.3
+
+---
+
+## ⚠️ **VÉRIFICATION OBLIGATOIRE**
+
+### **❌ JAMAIS dire "c'est fini" sans vérifier**
+1. **✅ Tester l'application** : Lancer et vérifier le fonctionnement
+2. **✅ Vérifier les logs** : Pas d'erreurs dans le terminal
+3. **✅ Confirmer le démarrage** : Application accessible sans erreur
+4. **✅ Tester les fonctionnalités** : Vérifier les pages principales
+5. **✅ Vérifier Streamlit** : http://localhost:8501 accessible
+
+---
+
+## 🔄 **CONFIRMATION OBLIGATOIRE POUR CHANGEMENTS MAJEURS**
+
+### **Demander l'approbation de l'utilisateur AVANT :**
+- **Modification de logique métier** : Changer un algorithme existant
+- **Refactoring majeur** : Restructuration importante
+- **Suppression de code** : Retirer des fonctionnalités
+- **Changement d'architecture** : Modifier la structure
+- **Ajout de dépendances** : Nouvelles bibliothèques
+
+### **Process de confirmation**
+1. **Expliquer le changement** : Décrire clairement la modification
+2. **Détailler l'impact** : Conséquences sur le système
+3. **Proposer des alternatives** : Donner plusieurs options
+4. **Attendre validation** : Ne pas procéder sans accord explicite
+
+---
+
+## 📈 **MÉTRIQUES DE QUALITÉ**
+
+### **Actuelles**
+- **Tests** : 100% de succès (99 unit + 11 system)
+- **Couverture** : 43% (objectif 80%)
+- **Features** : 89% (8/9) - 1 en développement
+- **Performance** : Tests < 7 secondes
+
+### **Objectifs**
+- **Couverture** : 80% minimum
+- **Temps de chargement** : < 3 secondes pour l'interface
+- **Mémoire** : < 500MB pour l'application
+- **Cache hit rate** : > 80%
+
+---
+
+## 🔧 **SCRIPTS PRINCIPAUX**
+
+### **Maintenance**
+```bash
+# Orchestrateur principal
+uv run python scripts/sentinel_main.py --mode daemon
+
+# Refresh des prix (15min)
+uv run python scripts/refresh_prices.py
+
+# Refresh des news (4min)
+uv run python scripts/refresh_news.py
+
+# Pipeline de trading complet
+uv run python scripts/trading_pipeline.py
+
+# Service de sentiment
+uv run python scripts/sentiment_service.py
+
+# Tests système complets
+uv run python scripts/test_system.py
+```
+
+### **Script de Gestion**
+```bash
+# Mode production (avec Ollama)
+./scripts/sentinel2.sh prod
+
+# Mode développement (sans Ollama)
+./scripts/sentinel2.sh dev
+
+# Arrêter l'application
+./scripts/sentinel2.sh stop
+
+# Vérifier le statut
+./scripts/sentinel2.sh status
+```
+
+---
+
+## 🚨 **RÈGLES CRITIQUES (RÉSUMÉ)**
+
+1. **❌ JAMAIS de code sans tests** : TDD obligatoire
+2. **❌ JAMAIS de variables en brut** : Utiliser `constants.py`
+3. **❌ JAMAIS de simulations** : Données réelles uniquement
+4. **❌ JAMAIS de doublons Parquet** : Un fichier par type
+5. **❌ JAMAIS d'imports dans le code** : Tous en haut
+6. **✅ TOUJOURS demander confirmation** : Pour changements majeurs
+7. **✅ TOUJOURS vérifier avant de finir** : Tester l'application
+8. **✅ TOUJOURS respecter l'architecture** : Structure modulaire
+
+---
+
+## 🎯 **WORKFLOW CASCADE OPTIMAL**
+
+### **1. Analyse de la demande**
+- Comprendre la requête utilisateur
+- Identifier les modules concernés
+- Vérifier les constantes existantes
+- Consulter la documentation
+
+### **2. Planification**
+- Créer un plan d'action clair
+- Identifier les tests nécessaires
+- Évaluer l'impact sur l'architecture
+- Demander confirmation si changement majeur
+
+### **3. Implémentation**
+- Écrire les tests d'abord (TDD)
+- Implémenter le code minimal
+- Respecter les règles d'architecture
+- Documenter inline (docstrings + type hints)
+
+### **4. Vérification**
+- Exécuter tous les tests (100% succès requis)
+- Vérifier le fonctionnement réel
+- Contrôler les logs pour les erreurs
+- Tester l'interface si concernée
+
+### **5. Finalisation**
+- Mettre à jour la documentation
+- Confirmer avec l'utilisateur
+- Proposer des améliorations si pertinent
+
+---
+
+## 📚 **RESSOURCES**
+
+### **Documentation**
+- **README.md** : Documentation principale complète
+- **README_ARCHITECTURE.md** : Architecture détaillée
+- **READMEFUSION.md** : Documentation fusion adaptative
+- **archive/** : Historique des README (10 versions numérotées)
+
+### **Configuration**
+- **env.example** : Template de configuration
+- **.env** : Configuration locale (jamais commité)
+- **config/** : Configuration JSON (config.json, models.json)
+- **src/constants.py** : Constantes globales du projet
+
+---
+
+**Ces règles sont adaptées spécifiquement pour Windsurf/Cascade et doivent être respectées à chaque interaction avec le projet Sentinel2.**
+
+**En cas de doute, toujours se référer à ce document et au README.md principal.**
+
+---
+
+**Projet** : Sentinel2  
+**Version** : 2.0  
+**Statut** : ✅ Finalisé et Validé  
+**Qualité** : 🏆 Excellente  
+**Assistant** : Cascade (Windsurf)

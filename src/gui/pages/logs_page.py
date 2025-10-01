@@ -2,12 +2,13 @@
 Page de logs - Affichage des logs de l'application + Monitoring
 """
 
-import streamlit as st
-import pandas as pd
-from datetime import datetime, timedelta
 import os
-from pathlib import Path
 import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
 
 # Ajouter le répertoire src au path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -15,21 +16,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Import du gestionnaire de services centralisé
 from gui.services.service_manager import service_manager
 
+
 def show_logs_page():
     """Affiche la page de logs avec monitoring"""
-    
+
     # Vérifier l'état des services
-    services_running = st.session_state.get('services_running', True)
-    
+    services_running = st.session_state.get("services_running", True)
+
     # Utiliser le gestionnaire de services centralisé
     if services_running:
         all_services = service_manager.get_services()
-        monitoring_service = all_services.get('monitoring_service')
+        monitoring_service = all_services.get("monitoring_service")
     else:
         monitoring_service = None
-    
+
     # CSS personnalisé
-    st.markdown("""
+    st.markdown(
+        """
     <style>
         .main-header {
             text-align: center;
@@ -70,37 +73,49 @@ def show_logs_page():
         .status-offline { background-color: #dc3545; }
         .status-warning { background-color: #ffc107; }
     </style>
-    """, unsafe_allow_html=True)
-    
+    """,
+        unsafe_allow_html=True,
+    )
+
     # Section Monitoring & Contrôle (en premier)
     st.header("📊 Monitoring & Contrôle")
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         # Statut des services
         try:
             system_status = monitoring_service.get_system_status()
-            
-            st.markdown("""
+
+            st.markdown(
+                """
             <div class="monitoring-card">
                 <h4>🔧 Statut des Services</h4>
-            """, unsafe_allow_html=True)
-            
-            for service, status in system_status['services'].items():
-                status_class = f"status-{status}" if status in ['online', 'offline'] else "status-warning"
-                st.markdown(f"""
+            """,
+                unsafe_allow_html=True,
+            )
+
+            for service, status in system_status["services"].items():
+                status_class = f"status-{status}" if status in ["online", "offline"] else "status-warning"
+                st.markdown(
+                    f"""
                 <p><span class="status-indicator {status_class}"></span>{service.title()}: <strong>{status}</strong></p>
-                """, unsafe_allow_html=True)
-            
-            st.markdown(f"""
+                """,
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f"""
                 <p><strong>Statut global:</strong> {system_status['overall_status']}</p>
                 <p><strong>Services en ligne:</strong> {system_status['online_count']}/{system_status['total_count']}</p>
             </div>
-            """, unsafe_allow_html=True)
-        
+            """,
+                unsafe_allow_html=True,
+            )
+
         except Exception as e:
-            st.markdown("""
+            st.markdown(
+                """
             <div class="monitoring-card">
                 <h4>🔧 Statut des Services</h4>
                 <p><span class="status-indicator status-offline"></span>Crawler: <strong>offline</strong></p>
@@ -111,40 +126,56 @@ def show_logs_page():
                 <p><strong>Statut global:</strong> offline</p>
                 <p><strong>Services en ligne:</strong> 0/5</p>
             </div>
-            """, unsafe_allow_html=True)
-    
+            """,
+                unsafe_allow_html=True,
+            )
+
     with col2:
         # Mini-log des actions
         try:
             decisions = monitoring_service.get_recent_trading_decisions(5)
-            
-            st.markdown("""
+
+            st.markdown(
+                """
             <div class="monitoring-card">
                 <h4>📝 Actions Récentes</h4>
-            """, unsafe_allow_html=True)
-            
+            """,
+                unsafe_allow_html=True,
+            )
+
             for decision in decisions:
                 # Ne pas afficher de recommandations pour NVDA
-                if decision['ticker'] == 'NVDA':
-                    st.markdown(f"""
+                if decision["ticker"] == "NVDA":
+                    st.markdown(
+                        f"""
                     <p style="color: #ffc107;">
                         <strong>ANALYSE SEULEMENT</strong> {decision['ticker']} @ ${decision['price']}<br>
                         <small>{decision['timestamp'].strftime('%H:%M')} - Pas de prédiction disponible</small>
                     </p>
-                    """, unsafe_allow_html=True)
+                    """,
+                        unsafe_allow_html=True,
+                    )
                 else:
-                    color = "green" if decision['action'] == "ACHETER" else "red" if decision['action'] == "VENDRE" else "orange"
-                    st.markdown(f"""
+                    color = (
+                        "green"
+                        if decision["action"] == "ACHETER"
+                        else "red" if decision["action"] == "VENDRE" else "orange"
+                    )
+                    st.markdown(
+                        f"""
                     <p style="color: {color};">
                         <strong>{decision['action']}</strong> {decision['ticker']} @ ${decision['price']}<br>
                         <small>{decision['timestamp'].strftime('%H:%M')} - {decision['reason']}</small>
                     </p>
-                    """, unsafe_allow_html=True)
-            
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
             st.markdown("</div>", unsafe_allow_html=True)
-        
+
         except Exception as e:
-            st.markdown("""
+            st.markdown(
+                """
             <div class="monitoring-card">
                 <h4>📝 Actions Récentes</h4>
                 <p style="color: #6c757d;">
@@ -152,34 +183,47 @@ def show_logs_page():
                     <small>Aucune action disponible</small>
                 </p>
             </div>
-            """, unsafe_allow_html=True)
-    
+            """,
+                unsafe_allow_html=True,
+            )
+
     with col3:
         # Alertes
         try:
             alerts = monitoring_service.get_alerts()
-            
-            st.markdown("""
+
+            st.markdown(
+                """
             <div class="monitoring-card">
                 <h4>🚨 Alertes</h4>
-            """, unsafe_allow_html=True)
-            
+            """,
+                unsafe_allow_html=True,
+            )
+
             if alerts:
                 for alert in alerts[-3:]:  # 3 dernières alertes
-                    severity_color = "red" if alert['severity'] == "critical" else "orange" if alert['severity'] == "warning" else "blue"
-                    st.markdown(f"""
+                    severity_color = (
+                        "red"
+                        if alert["severity"] == "critical"
+                        else "orange" if alert["severity"] == "warning" else "blue"
+                    )
+                    st.markdown(
+                        f"""
                     <p style="color: {severity_color};">
                         <strong>{alert['type'].title()}</strong><br>
                         <small>{alert['message']}</small>
                     </p>
-                    """, unsafe_allow_html=True)
+                    """,
+                        unsafe_allow_html=True,
+                    )
             else:
                 st.markdown("<p style='color: green;'>✅ Aucune alerte</p>", unsafe_allow_html=True)
-            
+
             st.markdown("</div>", unsafe_allow_html=True)
-        
+
         except Exception as e:
-            st.markdown("""
+            st.markdown(
+                """
             <div class="monitoring-card">
                 <h4>🚨 Alertes</h4>
                 <p style="color: #6c757d;">
@@ -187,17 +231,19 @@ def show_logs_page():
                     <small>Aucune alerte disponible</small>
                 </p>
             </div>
-            """, unsafe_allow_html=True)
-    
+            """,
+                unsafe_allow_html=True,
+            )
+
     # Métriques de performance
     st.header("📈 Métriques de Performance")
-    
+
     if monitoring_service:
         try:
             metrics = monitoring_service.get_performance_metrics()
-            
+
             col1, col2, col3, col4 = st.columns(4)
-            
+
             with col1:
                 st.metric("CPU", f"{metrics['cpu_percent']:.1f}%")
             with col2:
@@ -205,14 +251,14 @@ def show_logs_page():
             with col3:
                 st.metric("Disque", f"{metrics['disk_percent']:.1f}%")
             with col4:
-                st.metric("Dernière MAJ", metrics['timestamp'].strftime('%H:%M'))
-        
+                st.metric("Dernière MAJ", metrics["timestamp"].strftime("%H:%M"))
+
         except Exception as e:
             st.error(f"Impossible de charger les métriques: {e}")
     else:
         # Services arrêtés - Afficher des métriques à 0
         col1, col2, col3, col4 = st.columns(4)
-        
+
         with col1:
             st.metric("CPU", "0.0%")
         with col2:
@@ -221,59 +267,51 @@ def show_logs_page():
             st.metric("Disque", "0.0%")
         with col4:
             st.metric("Dernière MAJ", "N/A")
-        
+
         st.info("🔧 Services arrêtés - Métriques à 0")
-    
+
     st.markdown("---")
-    
+
     # Filtres de logs
     st.header("🔍 Filtres de Logs")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
-        log_level = st.selectbox(
-            "Niveau de log",
-            ["Tous", "INFO", "SUCCESS", "WARNING", "ERROR", "DEBUG"],
-            index=0
-        )
-    
+        log_level = st.selectbox("Niveau de log", ["Tous", "INFO", "SUCCESS", "WARNING", "ERROR", "DEBUG"], index=0)
+
     with col2:
         time_range = st.selectbox(
-            "Période",
-            ["Dernière heure", "Dernières 6 heures", "Dernier jour", "Dernière semaine"],
-            index=1
+            "Période", ["Dernière heure", "Dernières 6 heures", "Dernier jour", "Dernière semaine"], index=1
         )
-    
+
     with col3:
         component = st.selectbox(
-            "Composant",
-            ["Tous", "DataService", "ChartService", "PredictionService", "Main", "GUI"],
-            index=0
+            "Composant", ["Tous", "DataService", "ChartService", "PredictionService", "Main", "GUI"], index=0
         )
-    
+
     with col4:
         if st.button("🔄 Actualiser", key="refresh_logs"):
             st.rerun()
-    
+
     # Simulation de logs (en attendant la vraie implémentation)
     def generate_sample_logs():
         """Génère des logs d'exemple"""
         logs = []
-        
+
         # Logs récents
         now = datetime.now()
         for i in range(50):
-            timestamp = now - timedelta(minutes=i*2)
-            
+            timestamp = now - timedelta(minutes=i * 2)
+
             # Niveaux de log variés
             levels = ["INFO", "SUCCESS", "WARNING", "ERROR", "DEBUG"]
             level = levels[i % len(levels)]
-            
+
             # Composants variés
             components = ["DataService", "ChartService", "PredictionService", "Main", "GUI"]
             comp = components[i % len(components)]
-            
+
             # Messages variés
             messages = [
                 f"Données chargées pour NVDA: {6708 - i*10} lignes",
@@ -285,123 +323,129 @@ def show_logs_page():
                 f"Filtrage des données: {30 - i//2} lignes",
                 f"Calcul des moyennes mobiles terminé",
                 f"Analyse de sentiment en cours...",
-                f"Validation des données réussie"
+                f"Validation des données réussie",
             ]
-            
+
             message = messages[i % len(messages)]
-            
-            logs.append({
-                'timestamp': timestamp.strftime('%H:%M:%S'),
-                'level': level,
-                'component': comp,
-                'message': message
-            })
-        
+
+            logs.append(
+                {"timestamp": timestamp.strftime("%H:%M:%S"), "level": level, "component": comp, "message": message}
+            )
+
         return logs
-    
+
     # Affichage des logs
     st.header("📊 Journal des Logs")
-    
+
     # Afficher les logs réels du système
     st.subheader("🔍 Logs Réels du Système")
-    
+
     try:
         # Lire les logs réels
         log_file = Path("data/logs/sentinel_main.log")
         if log_file.exists():
-            with open(log_file, 'r', encoding='utf-8') as f:
+            with open(log_file, "r", encoding="utf-8") as f:
                 real_logs = f.readlines()
-            
+
             # Afficher les 50 dernières lignes
             recent_logs = real_logs[-50:] if len(real_logs) > 50 else real_logs
-            
+
             st.markdown("**50 dernières entrées du système :**")
             for log_line in recent_logs:
                 if log_line.strip():
                     # Parser le log pour extraire les composants
-                    parts = log_line.strip().split(' | ')
+                    parts = log_line.strip().split(" | ")
                     if len(parts) >= 4:
                         timestamp = parts[0]
                         level = parts[1].split()[1] if len(parts[1].split()) > 1 else "INFO"
                         component = parts[2].split()[1] if len(parts[2].split()) > 1 else "SYSTEM"
-                        message = ' | '.join(parts[3:])
-                        
+                        message = " | ".join(parts[3:])
+
                         # Déterminer la classe CSS
-                        level_class = f"log-{level.lower()}" if level.lower() in ['info', 'success', 'warning', 'error', 'debug'] else "log-info"
-                        
-                        st.markdown(f"""
+                        level_class = (
+                            f"log-{level.lower()}"
+                            if level.lower() in ["info", "success", "warning", "error", "debug"]
+                            else "log-info"
+                        )
+
+                        st.markdown(
+                            f"""
                         <div class="log-entry {level_class}">
                             <strong>{timestamp}</strong> | 
                             <strong>{level}</strong> | 
                             <strong>{component}</strong> | 
                             {message}
                         </div>
-                        """, unsafe_allow_html=True)
+                        """,
+                            unsafe_allow_html=True,
+                        )
                     else:
-                        st.markdown(f"""
+                        st.markdown(
+                            f"""
                         <div class="log-entry log-info">
                             {log_line.strip()}
                         </div>
-                        """, unsafe_allow_html=True)
+                        """,
+                            unsafe_allow_html=True,
+                        )
         else:
             st.warning("Fichier de logs non trouvé")
-    
+
     except Exception as e:
         st.error(f"Erreur lors de la lecture des logs: {e}")
-    
-    
+
     # Statistiques des logs - Vraies données
     st.header("📈 Statistiques des Logs")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     try:
         # Compter les logs réels par niveau
         log_file = Path("data/logs/sentinel_main.log")
         if log_file.exists():
-            with open(log_file, 'r', encoding='utf-8') as f:
+            with open(log_file, "r", encoding="utf-8") as f:
                 real_logs = f.readlines()
-            
+
             # Parser les logs réels
-            level_counts = {'INFO': 0, 'SUCCESS': 0, 'WARNING': 0, 'ERROR': 0, 'DEBUG': 0}
+            level_counts = {"INFO": 0, "SUCCESS": 0, "WARNING": 0, "ERROR": 0, "DEBUG": 0}
             for log_line in real_logs:
-                if ' | ' in log_line:
-                    parts = log_line.split(' | ')
+                if " | " in log_line:
+                    parts = log_line.split(" | ")
                     if len(parts) >= 2:
                         level_part = parts[1].strip()
                         for level in level_counts.keys():
                             if level in level_part:
                                 level_counts[level] += 1
                                 break
-        
+
         with col1:
-            st.metric("INFO", level_counts.get('INFO', 0))
+            st.metric("INFO", level_counts.get("INFO", 0))
         with col2:
-            st.metric("SUCCESS", level_counts.get('SUCCESS', 0))
+            st.metric("SUCCESS", level_counts.get("SUCCESS", 0))
         with col3:
-            st.metric("WARNING", level_counts.get('WARNING', 0))
+            st.metric("WARNING", level_counts.get("WARNING", 0))
         with col4:
-            st.metric("ERROR", level_counts.get('ERROR', 0))
-    
+            st.metric("ERROR", level_counts.get("ERROR", 0))
+
     except Exception as e:
         st.error(f"Erreur lors du calcul des statistiques: {e}")
         # Fallback - pas de logs disponibles
-        level_counts = {'INFO': 0, 'SUCCESS': 0, 'WARNING': 0, 'ERROR': 0, 'DEBUG': 0}
-        
+        level_counts = {"INFO": 0, "SUCCESS": 0, "WARNING": 0, "ERROR": 0, "DEBUG": 0}
+
         with col1:
-            st.metric("INFO", level_counts.get('INFO', 0))
+            st.metric("INFO", level_counts.get("INFO", 0))
         with col2:
-            st.metric("SUCCESS", level_counts.get('SUCCESS', 0))
+            st.metric("SUCCESS", level_counts.get("SUCCESS", 0))
         with col3:
-            st.metric("WARNING", level_counts.get('WARNING', 0))
+            st.metric("WARNING", level_counts.get("WARNING", 0))
         with col4:
-            st.metric("ERROR", level_counts.get('ERROR', 0))
-    
+            st.metric("ERROR", level_counts.get("ERROR", 0))
+
     # Actions sur les logs
     st.header("🎮 Actions")
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         if st.button("💾 Exporter les Logs", key="export_logs"):
             # Créer un DataFrame des logs
@@ -411,30 +455,29 @@ def show_logs_page():
                 label="📥 Télécharger CSV",
                 data=csv,
                 file_name=f"sentinel_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
+                mime="text/csv",
             )
-    
+
     with col2:
         if st.button("🗑️ Nettoyer les Logs", key="clean_logs"):
             st.warning("⚠️ Cette action supprimera tous les logs. Êtes-vous sûr ?")
             if st.button("✅ Confirmer la suppression", key="confirm_clean"):
                 st.success("✅ Logs nettoyés")
-    
+
     with col3:
         if st.button("📊 Graphique des Logs", key="chart_logs"):
             # Créer un graphique des logs par heure
             df_logs = pd.DataFrame(recent_logs)
-            df_logs['hour'] = pd.to_datetime(df_logs['timestamp'], format='%H:%M:%S').dt.hour
-            
-            hourly_counts = df_logs.groupby(['hour', 'level']).size().unstack(fill_value=0)
-            
+            df_logs["hour"] = pd.to_datetime(df_logs["timestamp"], format="%H:%M:%S").dt.hour
+
+            hourly_counts = df_logs.groupby(["hour", "level"]).size().unstack(fill_value=0)
+
             st.bar_chart(hourly_counts)
-    
-    
+
     # Informations système
     st.markdown("---")
     st.markdown("#### 📋 Informations Système")
-    
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(f"**🕒 Dernière actualisation** : {datetime.now().strftime('%H:%M:%S')}")

@@ -4,14 +4,15 @@ Fixtures et configuration commune pour tous les tests
 """
 
 import os
-import tempfile
 import shutil
-from pathlib import Path
-from typing import Generator, Dict, Any
-import pytest
-import pandas as pd
-import numpy as np
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, Generator
+
+import numpy as np
+import pandas as pd
+import pytest
 
 # Configuration des variables d'environnement pour les tests
 os.environ.setdefault("FINBERT_MODE", "stub")
@@ -43,65 +44,74 @@ def temp_dir() -> Generator[Path, None, None]:
 @pytest.fixture(scope="function")
 def sample_price_data() -> pd.DataFrame:
     """Données de prix de test"""
-    dates = pd.date_range('2024-01-01', periods=100, freq='1min')
-    return pd.DataFrame({
-        'ts_utc': dates,
-        'open': np.random.randn(100) * 100 + 100,
-        'high': np.random.randn(100) * 100 + 105,
-        'low': np.random.randn(100) * 100 + 95,
-        'close': np.random.randn(100) * 100 + 100,
-        'volume': np.random.randint(1000, 10000, 100),
-        'ticker': 'SPY'
-    })
+    dates = pd.date_range("2024-01-01", periods=100, freq="1min")
+    return pd.DataFrame(
+        {
+            "ts_utc": dates,
+            "open": np.random.randn(100) * 100 + 100,
+            "high": np.random.randn(100) * 100 + 105,
+            "low": np.random.randn(100) * 100 + 95,
+            "close": np.random.randn(100) * 100 + 100,
+            "volume": np.random.randint(1000, 10000, 100),
+            "ticker": "SPY",
+        }
+    )
 
 
 @pytest.fixture(scope="function")
 def sample_news_data() -> pd.DataFrame:
     """Données de news de test"""
-    return pd.DataFrame({
-        'timestamp': pd.date_range('2024-01-01', periods=10, freq='1H'),
-        'title': [f'News {i}' for i in range(10)],
-        'content': [f'Content {i}' for i in range(10)],
-        'source': ['Reuters', 'Bloomberg', 'CNBC'] * 3 + ['Reuters'],
-        'ticker': ['SPY', 'NVDA'] * 5
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-01", periods=10, freq="1H"),
+            "title": [f"News {i}" for i in range(10)],
+            "content": [f"Content {i}" for i in range(10)],
+            "source": ["Reuters", "Bloomberg", "CNBC"] * 3 + ["Reuters"],
+            "ticker": ["SPY", "NVDA"] * 5,
+        }
+    )
 
 
 @pytest.fixture(scope="function")
 def sample_sentiment_data() -> pd.DataFrame:
     """Données de sentiment de test"""
-    return pd.DataFrame({
-        'timestamp': pd.date_range('2024-01-01', periods=20, freq='1H'),
-        'sentiment': np.random.randn(20),
-        'confidence': np.random.rand(20),
-        'ticker': 'SPY'
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-01", periods=20, freq="1H"),
+            "sentiment": np.random.randn(20),
+            "confidence": np.random.rand(20),
+            "ticker": "SPY",
+        }
+    )
 
 
 @pytest.fixture(scope="function")
 def sample_features_data() -> pd.DataFrame:
     """Données de features pour les tests LSTM"""
     from src.constants import CONSTANTS
-    
+
     data = {}
     for feature in CONSTANTS.get_feature_columns():
         data[feature] = np.random.randn(100)
-    
-    data['DATE'] = pd.date_range('2024-01-01', periods=100, freq='1min')
+
+    data["DATE"] = pd.date_range("2024-01-01", periods=100, freq="1min")
     return pd.DataFrame(data)
 
 
 @pytest.fixture(scope="function")
 def mock_yahoo_data() -> pd.DataFrame:
     """Données mockées de Yahoo Finance"""
-    dates = pd.date_range('2024-01-01', periods=50, freq='1min')
-    return pd.DataFrame({
-        'Open': np.random.randn(50) * 100 + 100,
-        'High': np.random.randn(50) * 100 + 105,
-        'Low': np.random.randn(50) * 100 + 95,
-        'Close': np.random.randn(50) * 100 + 100,
-        'Volume': np.random.randint(1000, 10000, 50)
-    }, index=dates)
+    dates = pd.date_range("2024-01-01", periods=50, freq="1min")
+    return pd.DataFrame(
+        {
+            "Open": np.random.randn(50) * 100 + 100,
+            "High": np.random.randn(50) * 100 + 105,
+            "Low": np.random.randn(50) * 100 + 95,
+            "Close": np.random.randn(50) * 100 + 100,
+            "Volume": np.random.randint(1000, 10000, 50),
+        },
+        index=dates,
+    )
 
 
 @pytest.fixture(scope="function")
@@ -109,21 +119,21 @@ def mock_news_items() -> list:
     """Articles de news mockés"""
     return [
         {
-            'title': 'NVIDIA stock rises on strong earnings',
-            'summary': 'NVIDIA reported better than expected earnings',
-            'content': 'Full article content about NVIDIA earnings...',
-            'link': 'https://example.com/nvidia-news-1',
-            'published': '2024-01-01T10:00:00Z',
-            'source': 'Reuters'
+            "title": "NVIDIA stock rises on strong earnings",
+            "summary": "NVIDIA reported better than expected earnings",
+            "content": "Full article content about NVIDIA earnings...",
+            "link": "https://example.com/nvidia-news-1",
+            "published": "2024-01-01T10:00:00Z",
+            "source": "Reuters",
         },
         {
-            'title': 'S&P 500 shows strong performance',
-            'summary': 'The S&P 500 index continues to rise',
-            'content': 'Full article content about S&P 500...',
-            'link': 'https://example.com/spy-news-1',
-            'published': '2024-01-01T11:00:00Z',
-            'source': 'Bloomberg'
-        }
+            "title": "S&P 500 shows strong performance",
+            "summary": "The S&P 500 index continues to rise",
+            "content": "Full article content about S&P 500...",
+            "link": "https://example.com/spy-news-1",
+            "published": "2024-01-01T11:00:00Z",
+            "source": "Bloomberg",
+        },
     ]
 
 
@@ -137,19 +147,12 @@ def mock_polygon_response() -> dict:
                 "t": 1704067200000,  # timestamp
                 "o": 100.0,  # open
                 "h": 102.0,  # high
-                "l": 99.0,   # low
+                "l": 99.0,  # low
                 "c": 101.0,  # close
-                "v": 1000    # volume
+                "v": 1000,  # volume
             },
-            {
-                "t": 1704067260000,
-                "o": 101.0,
-                "h": 103.0,
-                "l": 100.0,
-                "c": 102.0,
-                "v": 1200
-            }
-        ]
+            {"t": 1704067260000, "o": 101.0, "h": 103.0, "l": 100.0, "c": 102.0, "v": 1200},
+        ],
     }
 
 
@@ -165,52 +168,42 @@ def mock_newsapi_response() -> dict:
                 "content": "Full article content...",
                 "url": "https://example.com/news1",
                 "publishedAt": "2024-01-01T10:00:00Z",
-                "source": {"name": "Reuters"}
+                "source": {"name": "Reuters"},
             }
-        ]
+        ],
     }
 
 
 @pytest.fixture(scope="function")
 def mock_rss_feed():
     """Feed RSS mocké"""
+
     class MockEntry:
         def __init__(self, title, summary, link, published):
             self.title = title
             self.summary = summary
             self.link = link
             self.published = published
-    
+
     class MockFeed:
         def __init__(self):
             self.bozo = False
             self.entries = [
                 MockEntry(
-                    "NVIDIA stock rises",
-                    "Strong earnings report",
-                    "https://example.com/news1",
-                    "2024-01-01T10:00:00Z"
+                    "NVIDIA stock rises", "Strong earnings report", "https://example.com/news1", "2024-01-01T10:00:00Z"
                 ),
                 MockEntry(
-                    "Market analysis",
-                    "S&P 500 shows growth",
-                    "https://example.com/news2",
-                    "2024-01-01T11:00:00Z"
-                )
+                    "Market analysis", "S&P 500 shows growth", "https://example.com/news2", "2024-01-01T11:00:00Z"
+                ),
             ]
-    
+
     return MockFeed()
 
 
 @pytest.fixture(scope="function")
 def mock_trading_config() -> Dict[str, Any]:
     """Configuration de trading mockée"""
-    return {
-        "buy_threshold": 0.3,
-        "sell_threshold": -0.3,
-        "hold_confidence": 0.3,
-        "success_threshold": 0.02
-    }
+    return {"buy_threshold": 0.3, "sell_threshold": -0.3, "hold_confidence": 0.3, "success_threshold": 0.02}
 
 
 @pytest.fixture(scope="function")
@@ -225,7 +218,7 @@ def mock_lstm_config() -> Dict[str, Any]:
         "epochs": 100,
         "batch_size": 32,
         "patience": 15,
-        "learning_rate": 0.001
+        "learning_rate": 0.001,
     }
 
 
@@ -237,7 +230,7 @@ def mock_fusion_config() -> Dict[str, Any]:
         "base_price_weight": 0.6,
         "base_sentiment_weight": 0.4,
         "max_weight_change": 0.1,
-        "regularization_factor": 0.1
+        "regularization_factor": 0.1,
     }
 
 

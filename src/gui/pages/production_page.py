@@ -3,52 +3,54 @@ Page de production - Dashboard Trading
 Interface optimisée selon les spécifications utilisateur
 """
 
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
+import json
+import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import sys
+
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import requests
-import time
-import json
+import streamlit as st
 
 # Ajouter le répertoire src au path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from gui.services.data_service import DataService
 from gui.services.chart_service import ChartService
-from gui.services.prediction_service import PredictionService
-from gui.services.sentiment_service import SentimentService
+from gui.services.data_monitor_service import DataMonitorService
+from gui.services.data_service import DataService
+from gui.services.decision_validation_service import DecisionValidationService
 from gui.services.fusion_service import FusionService
 from gui.services.llm_service import LLMService
 from gui.services.monitoring_service import MonitoringService
-from gui.services.data_monitor_service import DataMonitorService
-from gui.services.decision_validation_service import DecisionValidationService
+from gui.services.prediction_service import PredictionService
+from gui.services.sentiment_service import SentimentService
 
 
 def show_production_page():
     """Affiche la page de production optimisée"""
-    
+
     # Initialiser les services
-    if 'production_services' not in st.session_state:
+    if "production_services" not in st.session_state:
         st.session_state.production_services = {
-            'data_service': DataService(),
-            'chart_service': ChartService(),
-            'prediction_service': PredictionService(),
-            'sentiment_service': SentimentService(),
-            'fusion_service': FusionService(),
-            'llm_service': LLMService(),
-            'monitoring_service': MonitoringService(),
-            'data_monitor_service': DataMonitorService()
+            "data_service": DataService(),
+            "chart_service": ChartService(),
+            "prediction_service": PredictionService(),
+            "sentiment_service": SentimentService(),
+            "fusion_service": FusionService(),
+            "llm_service": LLMService(),
+            "monitoring_service": MonitoringService(),
+            "data_monitor_service": DataMonitorService(),
         }
-    
+
     services = st.session_state.production_services
-    
+
     # CSS personnalisé optimisé
-    st.markdown("""
+    st.markdown(
+        """
     <style>
         .feature-card {
             background: white;
@@ -202,72 +204,86 @@ def show_production_page():
             margin-top: 0.5rem;
         }
     </style>
-    """, unsafe_allow_html=True)
-    
+    """,
+        unsafe_allow_html=True,
+    )
+
     # Sidebar - Nettoyée selon demande
     with st.sidebar:
         st.header("⚙️ Configuration Production")
-        
+
         # Configuration simple
         ticker = st.selectbox(
             "Ticker",
             ["SPY", "NVDA"],
             index=0,
-            help="Symbole de l'action à analyser. SPY: Prédictions disponibles. NVDA: Analyse uniquement."
+            help="Symbole de l'action à analyser. SPY: Prédictions disponibles. NVDA: Analyse uniquement.",
         )
-        
+
         # Période fixe à 7 jours pour l'analyse
         period = "7 derniers jours"
-        
+
         # Configuration des seuils adaptatifs
         st.subheader("🎯 Seuils Adaptatifs")
-        
+
         # Afficher les seuils actuels
-        fusion_stats = services['fusion_service'].get_fusion_stats()
-        current_thresholds = fusion_stats.get('current_thresholds', {'buy': 0.1, 'sell': -0.1})
-        
+        fusion_stats = services["fusion_service"].get_fusion_stats()
+        current_thresholds = fusion_stats.get("current_thresholds", {"buy": 0.1, "sell": -0.1})
+
         col1, col2 = st.columns(2)
         with col1:
-            st.metric(
-                "Seuil BUY",
-                f"{current_thresholds.get('buy', 0.1):.3f}",
-                help="Signal > seuil → ACHETER"
-            )
+            st.metric("Seuil BUY", f"{current_thresholds.get('buy', 0.1):.3f}", help="Signal > seuil → ACHETER")
         with col2:
-            st.metric(
-                "Seuil SELL", 
-                f"{current_thresholds.get('sell', -0.1):.3f}",
-                help="Signal < seuil → VENDRE"
-            )
-        
+            st.metric("Seuil SELL", f"{current_thresholds.get('sell', -0.1):.3f}", help="Signal < seuil → VENDRE")
+
         # Information sur l'adaptation
         st.info("🔄 Les seuils s'adaptent automatiquement selon la volatilité du marché")
-        
+
         # Actions du système
         st.subheader("🎮 Actions")
-        
+
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("🚀 Démarrer Services", type="primary", key="start_services", help="Démarre tous les services de trading (crawler, prédiction, sentiment, fusion)"):
+            if st.button(
+                "🚀 Démarrer Services",
+                type="primary",
+                key="start_services",
+                help="Démarre tous les services de trading (crawler, prédiction, sentiment, fusion)",
+            ):
                 st.success("✅ Services démarrés")
                 st.session_state.services_running = True
         with col2:
-            if st.button("🛑 Arrêter Services", type="secondary", key="stop_services", help="Arrête tous les services de trading (simulation)"):
+            if st.button(
+                "🛑 Arrêter Services",
+                type="secondary",
+                key="stop_services",
+                help="Arrête tous les services de trading (simulation)",
+            ):
                 st.warning("⚠️ Services arrêtés")
                 st.session_state.services_running = False
         with col3:
-            if st.button("🔄 Rafraîchir", type="secondary", key="refresh_page", help="Recharge la page et actualise tous les affichages"):
+            if st.button(
+                "🔄 Rafraîchir",
+                type="secondary",
+                key="refresh_page",
+                help="Recharge la page et actualise tous les affichages",
+            ):
                 st.rerun()
-        
+
         # Mise à jour des données
         st.subheader("📊 Données")
-        
-        if st.button("📈 Mettre à jour les prix", type="secondary", key="update_prices", help="Met à jour les données de prix 15min depuis l'API et recharge les graphiques"):
+
+        if st.button(
+            "📈 Mettre à jour les prix",
+            type="secondary",
+            key="update_prices",
+            help="Met à jour les données de prix 15min depuis l'API et recharge les graphiques",
+        ):
             with st.spinner("Mise à jour des données de prix..."):
                 try:
                     # Utiliser le service de monitoring pour la mise à jour
-                    success = services['data_monitor_service'].trigger_data_refresh(ticker)
-                    
+                    success = services["data_monitor_service"].trigger_data_refresh(ticker)
+
                     if success:
                         # Vider tous les caches Streamlit pour forcer le rechargement
                         st.cache_data.clear()
@@ -276,15 +292,16 @@ def show_production_page():
                         st.rerun()  # Recharger pour voir les nouvelles données
                     else:
                         st.warning("⚠️ Mise à jour partielle - Vérifiez les logs")
-                    
+
                 except Exception as e:
                     st.error(f"❌ Erreur lors de la mise à jour: {e}")
                     st.info("ℹ️ Utilisation des données en cache")
-        
+
         # Section d'aide
         st.subheader("❓ Aide")
         with st.expander("💡 Que font ces boutons ?", expanded=False):
-            st.markdown("""
+            st.markdown(
+                """
             **🎮 Actions :**
             - **🚀 Démarrer Services** : Lance tous les services de trading (crawler, prédiction, sentiment, fusion)
             - **🛑 Arrêter Services** : Arrête tous les services (simulation pour l'interface)
@@ -292,23 +309,24 @@ def show_production_page():
             
             **📊 Données :**
             - **📈 Mettre à jour les prix** : Met à jour les données de prix 15min depuis l'API et recharge les graphiques
-            """)
-    
+            """
+            )
+
     # 1. COMPTE RENDU D'ACTIVITÉ - Version restructurée en haut
     st.header("📊 Compte Rendu d'Activité")
-    
+
     # Vérification de l'état du marché
     market_status = _check_market_status()
-    
+
     # Vérification des dépendances critiques
     fusion_available, fusion_errors = _check_fusion_dependencies(services, ticker, market_status)
-    
+
     # Affichage des erreurs centralisées - Un seul message par module
     if fusion_errors:
-        critical_errors = [e for e in fusion_errors if e['severity'] == 'critical']
+        critical_errors = [e for e in fusion_errors if e["severity"] == "critical"]
         if critical_errors:
             st.error(f"🚨 **{critical_errors[0]['title']}** – {critical_errors[0]['message']}")
-    
+
     # Calculer fusion_data avant l'affichage des KPIs
     fusion_data = None
     if fusion_available:
@@ -316,70 +334,86 @@ def show_production_page():
             price_signal = _get_price_signal(services, ticker)
             sentiment_signal = _get_sentiment_signal(services, ticker)
             prediction_signal = _get_prediction_signal(services, ticker)
-            
-            fusion_data = services['fusion_service'].calculate_fusion_score(
+
+            fusion_data = services["fusion_service"].calculate_fusion_score(
                 price_signal, sentiment_signal, prediction_signal
             )
         except Exception as e:
             st.error(f"Erreur calcul fusion: {e}")
             fusion_data = None
-    
+
     # KPI principaux en haut - Ordre réorganisé
     col1, col2, col3, col4, col5 = st.columns(5)
-    
+
     with col1:
         # 1. Statut marché
         market_color = "#28a745" if market_status["is_open"] else "#dc3545"
         market_text = "Ouvert" if market_status["is_open"] else "Fermé"
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div class="kpi-box">
             <div class="kpi-value" style="color: {market_color};">{market_text}</div>
             <div class="kpi-label">Marché</div>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     with col2:
         # 2. Dernière MAJ + Prochain Update (fenêtres fixes de 15 minutes)
         current_time = datetime.now().strftime("%H:%M:%S")
         next_decision_time = _get_next_decision_time()
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div class="kpi-box">
             <div class="kpi-value" style="color: #667eea;">{current_time}</div>
             <div class="kpi-label">Dernière MAJ</div>
             <div class="kpi-label" style="font-size: 0.8rem; color: #888; margin-top: 0.5rem;">Prochain: {next_decision_time}</div>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     with col3:
         # 3. Confiance avec tooltip
         if fusion_available and fusion_data:
             try:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="kpi-box" title="Niveau de confiance basé sur la cohérence des signaux (prix, sentiment, prédiction)">
                     <div class="kpi-value">{fusion_data['confidence']:.1%}</div>
                     <div class="kpi-label">Confiance</div>
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
             except:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="kpi-box">
                     <div class="kpi-value" style="color: #dc3545;">N/A</div>
                     <div class="kpi-label">Confiance</div>
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
         else:
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-box">
                 <div class="kpi-value" style="color: #dc3545;">N/A</div>
                 <div class="kpi-label">Confiance</div>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+                unsafe_allow_html=True,
+            )
+
     with col4:
         # 4. Score de fusion avec détails
         if fusion_available and fusion_data:
             try:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="kpi-box">
                     <div class="kpi-value">{fusion_data['fusion_score']:.2f}</div>
                     <div class="kpi-label">Score Fusion</div>
@@ -387,69 +421,87 @@ def show_production_page():
                         Prix: {price_signal:.2f} | News: {sentiment_signal:.2f}
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
             except Exception as e:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="kpi-box">
                     <div class="kpi-value" style="color: #dc3545;">N/A</div>
                     <div class="kpi-label">Score Fusion</div>
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
         else:
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-box">
                 <div class="kpi-value" style="color: #dc3545;">N/A</div>
                 <div class="kpi-label">Score Fusion</div>
             </div>
-            """, unsafe_allow_html=True)
-    
+            """,
+                unsafe_allow_html=True,
+            )
+
     with col5:
         # 5. Recommandation - Afficher le dernier résultat ou statut approprié
         if fusion_available and market_status["is_open"] and ticker == "SPY" and fusion_data:
             try:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="kpi-box">
                     <div class="kpi-value" style="color: {fusion_data['color']};">{fusion_data['recommendation']}</div>
                     <div class="kpi-label">Recommandation</div>
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
             except:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="kpi-box">
                     <div class="kpi-value" style="color: #ffc107;">En cours</div>
                     <div class="kpi-label">Recommandation</div>
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
         elif ticker == "NVDA":
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-box">
                 <div class="kpi-value" style="color: #ffc107;">Analyse</div>
                 <div class="kpi-label">Recommandation</div>
                 <div class="kpi-label" style="font-size: 0.8rem; color: #888;">NVDA: Analyse uniquement</div>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
         else:
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-box">
                 <div class="kpi-value" style="color: #ffc107;">En attente</div>
                 <div class="kpi-label">Recommandation</div>
                 <div class="kpi-label" style="font-size: 0.8rem; color: #888;">Ouverture marché</div>
             </div>
-            """, unsafe_allow_html=True)
-    
-    
-    
+            """,
+                unsafe_allow_html=True,
+            )
+
     # 3. GRAPHIQUE 15MIN DU JOUR - Données réelles avec monitoring
     st.header("📈 Graphique 15min du Jour")
-    
+
     # Vérifier l'état des données 15min
-    data_summary = services['data_monitor_service'].get_data_summary(ticker)
-    
+    data_summary = services["data_monitor_service"].get_data_summary(ticker)
+
     # Afficher le graphique si les données sont disponibles
-    if data_summary.get('available', False):
+    if data_summary.get("available", False):
         try:
-            data_15min, metadata = services['data_monitor_service'].get_latest_15min_data(ticker)
-            
+            data_15min, metadata = services["data_monitor_service"].get_latest_15min_data(ticker)
+
             if not data_15min.empty:
                 # Filtrer les données des 7 derniers jours
                 seven_days_ago = datetime.now() - timedelta(days=7)
@@ -457,51 +509,57 @@ def show_production_page():
                 data_15min_copy = data_15min.copy()
                 # Convertir les timestamps en datetime naif pour la comparaison
                 data_15min_copy = data_15min_copy.copy()
-                data_15min_copy['ts_utc_naive'] = data_15min_copy['ts_utc'].apply(lambda x: x.replace(tzinfo=None) if x.tzinfo is not None else x)
-                data_recent = data_15min_copy[data_15min_copy['ts_utc_naive'] >= seven_days_ago].copy()
-                
+                data_15min_copy["ts_utc_naive"] = data_15min_copy["ts_utc"].apply(
+                    lambda x: x.replace(tzinfo=None) if x.tzinfo is not None else x
+                )
+                data_recent = data_15min_copy[data_15min_copy["ts_utc_naive"] >= seven_days_ago].copy()
+
                 if not data_recent.empty:
                     # Créer le graphique 15min
                     fig = go.Figure()
-                    
-                    fig.add_trace(go.Scatter(
-                        x=data_recent['ts_utc'],
-                        y=data_recent['close'],
-                        mode='lines+markers',
-                        name=f'{ticker} - Prix 15min',
-                        line=dict(color='#1f77b4', width=2),
-                        marker=dict(size=4),
-                        hovertemplate='<b>%{fullData.name}</b><br>Heure: %{x}<br>Prix: $%{y:.2f}<extra></extra>'
-                    ))
-                    
+
+                    fig.add_trace(
+                        go.Scatter(
+                            x=data_recent["ts_utc"],
+                            y=data_recent["close"],
+                            mode="lines+markers",
+                            name=f"{ticker} - Prix 15min",
+                            line=dict(color="#1f77b4", width=2),
+                            marker=dict(size=4),
+                            hovertemplate="<b>%{fullData.name}</b><br>Heure: %{x}<br>Prix: $%{y:.2f}<extra></extra>",
+                        )
+                    )
+
                     # Ajouter les moyennes mobiles
                     if len(data_recent) > 20:
-                        data_recent['ma_20'] = data_recent['close'].rolling(window=20).mean()
-                        fig.add_trace(go.Scatter(
-                            x=data_recent['ts_utc'],
-                            y=data_recent['ma_20'],
-                            mode='lines',
-                            name='MA 20',
-                            line=dict(color='#ff7f0e', width=1, dash='dash'),
-                            hovertemplate='<b>MA 20</b><br>Heure: %{x}<br>Prix: $%{y:.2f}<extra></extra>'
-                        ))
-                    
+                        data_recent["ma_20"] = data_recent["close"].rolling(window=20).mean()
+                        fig.add_trace(
+                            go.Scatter(
+                                x=data_recent["ts_utc"],
+                                y=data_recent["ma_20"],
+                                mode="lines",
+                                name="MA 20",
+                                line=dict(color="#ff7f0e", width=1, dash="dash"),
+                                hovertemplate="<b>MA 20</b><br>Heure: %{x}<br>Prix: $%{y:.2f}<extra></extra>",
+                            )
+                        )
+
                     fig.update_layout(
                         title=f"Prix {ticker} - 15min (7 derniers jours)",
                         xaxis_title="Heure",
                         yaxis_title="Prix ($)",
                         showlegend=True,
-                        hovermode='x unified'
+                        hovermode="x unified",
                     )
-                    
-                    st.plotly_chart(fig, config={'displayModeBar': False})
-                    
+
+                    st.plotly_chart(fig, config={"displayModeBar": False})
+
                     # Afficher les statistiques
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
                         st.metric("Dernier Prix", f"${data_recent['close'].iloc[-1]:.2f}")
                     with col2:
-                        price_change = data_summary.get('price_change_24h', 0)
+                        price_change = data_summary.get("price_change_24h", 0)
                         st.metric("Variation 24h", f"{price_change:+.2f}$")
                     with col3:
                         st.metric("Volume Moyen", f"{data_summary.get('volume_avg', 0):.0f}")
@@ -515,98 +573,104 @@ def show_production_page():
             st.error(f"Erreur graphique 15min: {e}")
     else:
         st.warning(f"Données 15min non disponibles: {data_summary.get('message', 'Erreur inconnue')}")
-    
-    
+
     # Layout en 2 colonnes centrées : Analyse sentiment, Service LLM
     col1, col2 = st.columns(2, gap="large")
-    
+
     with col1:
         # Analyse de Sentiment
         st.subheader("💭 Analyse de Sentiment")
-        
+
         # Analyse de sentiment simple
         try:
-            articles = services['sentiment_service'].get_news_articles(ticker, 10)
-            
+            articles = services["sentiment_service"].get_news_articles(ticker, 10)
+
             if articles:
                 # Trier les articles par date (plus récent en premier)
-                articles = sorted(articles, key=lambda x: x['timestamp'], reverse=True)
-                
+                articles = sorted(articles, key=lambda x: x["timestamp"], reverse=True)
+
                 # Afficher le dernier article analysé
                 dernier_article = articles[0]
-                sentiment = services['sentiment_service'].analyze_article_sentiment(dernier_article)
-                
+                sentiment = services["sentiment_service"].analyze_article_sentiment(dernier_article)
+
                 # Justification du sentiment
                 justification_elements = []
-                if sentiment['sentiment_score'] > 0.1:
+                if sentiment["sentiment_score"] > 0.1:
                     justification_elements.append("📈 Tendance positive")
-                elif sentiment['sentiment_score'] < -0.1:
+                elif sentiment["sentiment_score"] < -0.1:
                     justification_elements.append("📉 Tendance négative")
                 else:
                     justification_elements.append("📊 Tendance neutre")
-                
+
                 if len(articles) > 5:
                     justification_elements.append("📰 Volume d'articles élevé")
                 elif len(articles) > 2:
                     justification_elements.append("📰 Volume d'articles modéré")
                 else:
                     justification_elements.append("📰 Volume d'articles faible")
-                
+
                 # Affichage simple
-                st.markdown(f"**Dernier sentiment :** {sentiment['label']} ({sentiment['sentiment_score']:.2f}) • {dernier_article['timestamp'].strftime('%H:%M')}")
+                st.markdown(
+                    f"**Dernier sentiment :** {sentiment['label']} ({sentiment['sentiment_score']:.2f}) • {dernier_article['timestamp'].strftime('%H:%M')}"
+                )
                 st.markdown(f"**Justification :** {' | '.join(justification_elements)}")
-                
+
                 # Liste des articles
                 st.markdown("**📰 Liste des articles :**")
                 for i, article in enumerate(articles[:5], 1):  # Limiter à 5 articles
                     try:
-                        article_sentiment = services['sentiment_service'].analyze_article_sentiment(article)
+                        article_sentiment = services["sentiment_service"].analyze_article_sentiment(article)
                         with st.expander(f"Article {i}: {article['title'][:50]}...", expanded=False):
                             st.write(f"**Source:** {article['source']} • {article['timestamp'].strftime('%H:%M')}")
-                            st.write(f"**Sentiment:** {article_sentiment['emoji']} {article_sentiment['label']} ({article_sentiment['sentiment_score']:.2f})")
+                            st.write(
+                                f"**Sentiment:** {article_sentiment['emoji']} {article_sentiment['label']} ({article_sentiment['sentiment_score']:.2f})"
+                            )
                     except Exception as e:
                         with st.expander(f"Article {i}: {article['title'][:50]}...", expanded=False):
                             st.error(f"❌ Erreur d'analyse: {str(e)}")
             else:
                 st.info("Aucun article disponible")
-                
+
         except Exception as e:
             st.error(f"Erreur Analyse Sentiment: {str(e)}")
-    
+
     with col2:
         # Service LLM
         st.subheader("🧠 Service LLM")
-        
+
         # Service LLM simple
         try:
             llm_service = LLMService()
             llm_status = llm_service.check_service_status()
-            
+
             # Affichage du statut
-            if llm_status['online'] and llm_status['model_available']:
+            if llm_status["online"] and llm_status["model_available"]:
                 st.success(f"✅ {llm_status['status']}")
-                
+
                 # Génération automatique de synthèse si fusion disponible
                 if fusion_available and market_status["is_open"] and ticker == "SPY" and fusion_data:
                     try:
-                        current_price = services['data_service'].load_data(ticker)['CLOSE'].iloc[-1]
-                        sentiment_score = services['sentiment_service'].get_sentiment_score(ticker)
-                        
+                        current_price = services["data_service"].load_data(ticker)["CLOSE"].iloc[-1]
+                        sentiment_score = services["sentiment_service"].get_sentiment_score(ticker)
+
                         synthesis = llm_service.generate_trading_synthesis(
-                            ticker, fusion_data['recommendation'], 
-                            fusion_data.get('fusion_score', 0.0), current_price, sentiment_score
+                            ticker,
+                            fusion_data["recommendation"],
+                            fusion_data.get("fusion_score", 0.0),
+                            current_price,
+                            sentiment_score,
                         )
-                        
-                        if synthesis['success']:
-                            st.session_state['llm_synthesis'] = synthesis
+
+                        if synthesis["success"]:
+                            st.session_state["llm_synthesis"] = synthesis
                             llm_service.save_synthesis(ticker, synthesis)
-                            
+
                             with st.expander("📝 Analyse LLM Automatique", expanded=True):
-                                st.write(synthesis['synthesis'])
+                                st.write(synthesis["synthesis"])
                                 st.caption(f"Modèle: {synthesis['model']} • {synthesis['timestamp'][:19]}")
                         else:
                             st.warning(f"⚠️ {synthesis['synthesis']}")
-                            
+
                     except Exception as e:
                         if "timeout" in str(e).lower():
                             st.warning("⚠️ Service LLM occupé - Réessayez plus tard")
@@ -614,83 +678,85 @@ def show_production_page():
                             st.warning(f"⚠️ Erreur génération: {str(e)[:50]}...")
                 else:
                     st.info("ℹ️ Synthèse LLM disponible uniquement pour SPY en marché ouvert")
-                
+
                 # Afficher l'historique des synthèses
                 try:
                     from constants import CONSTANTS
+
                     synthesis_path = CONSTANTS.get_data_path() / "trading" / "llm_synthesis"
                     synthesis_files = list(synthesis_path.glob(f"{ticker}_synthesis_*.json"))
-                    
+
                     if synthesis_files:
                         # Prendre le fichier le plus récent
                         latest_file = max(synthesis_files, key=lambda x: x.stat().st_mtime)
-                        
-                        with open(latest_file, 'r') as f:
+
+                        with open(latest_file, "r") as f:
                             syntheses = json.load(f)
-                        
+
                         if syntheses:
                             st.markdown("**📚 Historique des Synthèses:**")
                             for i, synthesis in enumerate(syntheses[-3:], 1):
                                 with st.expander(f"Synthèse #{len(syntheses) - 3 + i}", expanded=False):
-                                    st.write(synthesis['synthesis'])
+                                    st.write(synthesis["synthesis"])
                                     st.caption(f"{synthesis['timestamp'][:19]} • {synthesis['tokens_used']} mots")
                         else:
                             st.info("Aucune synthèse disponible dans l'historique")
                     else:
                         st.info("Aucun historique de synthèses trouvé")
-                        
+
                 except Exception as e:
                     st.warning(f"⚠️ Erreur chargement historique: {str(e)}")
-            
+
             else:
                 st.error(f"❌ {llm_status['status']}")
                 st.info("💡 Pour activer le service LLM: `ollama pull phi3:mini`")
-            
+
             # Section supprimée selon demande utilisateur
-        
+
         except Exception as e:
             st.error(f"❌ Erreur Service LLM: {str(e)}")
-    
+
     # 5. TABLEAU DES DÉCISIONS RÉCENTES
     show_decisions_table(ticker)
-    
+
     # 6. ÉTATS DES SERVICES - Déplacé en fin de page et corrigé
     st.header("🔧 États des Services")
-    
+
     try:
         # Récupérer les statuts des services
-        articles = services['sentiment_service'].get_news_articles(ticker, 10)
+        articles = services["sentiment_service"].get_news_articles(ticker, 10)
         article_count = len(articles) if articles else 0
-        data = services['data_service'].load_data(ticker)
-        
+        data = services["data_service"].load_data(ticker)
+
         # Utiliser l'heure fixe de la dernière décision au lieu de l'heure actuelle
         try:
             # Charger les décisions récentes pour avoir l'heure fixe
             decisions_path = Path("data/trading/decisions_log/trading_decisions.json")
             if decisions_path.exists():
-                with open(decisions_path, 'r') as f:
+                with open(decisions_path, "r") as f:
                     decisions = json.load(f)
                 if decisions:
                     # Utiliser l'heure de la dernière décision
                     last_decision = decisions[-1]
-                    timestamp_str = last_decision.get('timestamp', '')
+                    timestamp_str = last_decision.get("timestamp", "")
                     if timestamp_str:
                         import pytz
+
                         # Parser le timestamp
-                        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
                         # Convertir en heure de Paris
-                        paris_tz = pytz.timezone('Europe/Paris')
+                        paris_tz = pytz.timezone("Europe/Paris")
                         paris_time = dt.astimezone(paris_tz)
-                        last_update = paris_time.strftime('%H:%M')
+                        last_update = paris_time.strftime("%H:%M")
                     else:
-                        last_update = 'N/A'
+                        last_update = "N/A"
                 else:
-                    last_update = 'N/A'
+                    last_update = "N/A"
             else:
-                last_update = 'N/A'
+                last_update = "N/A"
         except Exception as e:
-            last_update = 'N/A'
-        
+            last_update = "N/A"
+
         # Construire la ligne de statut
         if market_status["is_open"]:
             market_status_text = "🟢 Marché Ouvert (EST)"
@@ -702,10 +768,10 @@ def show_production_page():
             market_time = f"Heure: {market_status['current_time']}"
             next_info = f"Ouverture: {market_status['next_open']}"
             warning = "⚠️ Aucune prédiction disponible en dehors des heures de marché"
-        
+
         # Services status - Logique corrigée selon état du marché
         crawler_status = "🟢" if article_count > 0 else "🔴"
-        
+
         # Prix : données historiques toujours disponibles, mais pas de prix en temps réel si marché fermé
         if not data.empty:
             if market_status["is_open"]:
@@ -714,24 +780,27 @@ def show_production_page():
                 price_status = "🟡"  # Données historiques seulement (pas de temps réel)
         else:
             price_status = "🔴"  # Pas de données du tout
-        
+
         # Fusion : seulement si données prix disponibles ET marché ouvert
         if market_status["is_open"] and not data.empty:
             fusion_status = "🟢"
         else:
             fusion_status = "🔴"
-        
+
         status_line = f"{market_status_text} | {market_time} | {next_info}"
         if warning:
             status_line += f" | {warning}"
         status_line += f" | Articles: {crawler_status} {article_count} | Prix: {price_status} {last_update} | Fusion: {fusion_status}"
-        
-        st.markdown(f"""
+
+        st.markdown(
+            f"""
         <div class="status-line">
             {status_line}
         </div>
-        """, unsafe_allow_html=True)
-        
+        """,
+            unsafe_allow_html=True,
+        )
+
     except Exception as e:
         st.error(f"Erreur statut services: {e}")
 
@@ -740,97 +809,113 @@ def _check_fusion_dependencies(services, ticker, market_status):
     """Vérifie les dépendances critiques pour le calcul de fusion"""
     errors = []
     fusion_available = True
-    
+
     try:
         # 1. Vérifier la disponibilité des données de prix
         try:
-            data = services['data_service'].load_data(ticker)
+            data = services["data_service"].load_data(ticker)
             if data.empty:
-                errors.append({
-                    'severity': 'critical',
-                    'title': 'Données Prix Manquantes',
-                    'message': 'Aucune donnée de prix disponible pour le calcul de fusion.'
-                })
+                errors.append(
+                    {
+                        "severity": "critical",
+                        "title": "Données Prix Manquantes",
+                        "message": "Aucune donnée de prix disponible pour le calcul de fusion.",
+                    }
+                )
                 fusion_available = False
         except Exception as e:
-            errors.append({
-                'severity': 'critical',
-                'title': 'Erreur Chargement Prix',
-                'message': f'Impossible de charger les données de prix: {str(e)}'
-            })
+            errors.append(
+                {
+                    "severity": "critical",
+                    "title": "Erreur Chargement Prix",
+                    "message": f"Impossible de charger les données de prix: {str(e)}",
+                }
+            )
             fusion_available = False
-        
+
         # 2. Vérifier la prédiction (seulement pour SPY)
         if ticker == "SPY":
             try:
-                prediction = services['prediction_service'].predict(data, horizon=20)
-                if not prediction or 'predictions' not in prediction:
-                    errors.append({
-                        'severity': 'warning',
-                        'title': 'Prédiction Indisponible',
-                        'message': 'Les prédictions LSTM ne sont pas disponibles. Utilisation de valeurs par défaut.'
-                    })
+                prediction = services["prediction_service"].predict(data, horizon=20)
+                if not prediction or "predictions" not in prediction:
+                    errors.append(
+                        {
+                            "severity": "warning",
+                            "title": "Prédiction Indisponible",
+                            "message": "Les prédictions LSTM ne sont pas disponibles. Utilisation de valeurs par défaut.",
+                        }
+                    )
             except Exception as e:
-                errors.append({
-                    'severity': 'warning',
-                    'title': 'Erreur Prédiction',
-                    'message': f'Erreur lors du calcul de prédiction: {str(e)}'
-                })
-        
+                errors.append(
+                    {
+                        "severity": "warning",
+                        "title": "Erreur Prédiction",
+                        "message": f"Erreur lors du calcul de prédiction: {str(e)}",
+                    }
+                )
+
         # 3. Vérifier le sentiment
         try:
-            articles = services['sentiment_service'].get_news_articles(ticker, 5)
+            articles = services["sentiment_service"].get_news_articles(ticker, 5)
             if not articles:
-                errors.append({
-                    'severity': 'warning',
-                    'title': 'Articles Manquants',
-                    'message': 'Aucun article disponible pour l\'analyse de sentiment.'
-                })
+                errors.append(
+                    {
+                        "severity": "warning",
+                        "title": "Articles Manquants",
+                        "message": "Aucun article disponible pour l'analyse de sentiment.",
+                    }
+                )
         except Exception as e:
-            errors.append({
-                'severity': 'warning',
-                'title': 'Erreur Sentiment',
-                'message': f'Erreur lors de la récupération des articles: {str(e)}'
-            })
-        
+            errors.append(
+                {
+                    "severity": "warning",
+                    "title": "Erreur Sentiment",
+                    "message": f"Erreur lors de la récupération des articles: {str(e)}",
+                }
+            )
+
         # 4. Vérifier l'état du marché
         if not market_status["is_open"] and ticker == "SPY":
-            errors.append({
-                'severity': 'info',
-                'title': 'Marché Fermé',
-                'message': 'Le marché est fermé. Les prédictions peuvent être moins fiables.'
-            })
-    
+            errors.append(
+                {
+                    "severity": "info",
+                    "title": "Marché Fermé",
+                    "message": "Le marché est fermé. Les prédictions peuvent être moins fiables.",
+                }
+            )
+
     except Exception as e:
-        errors.append({
-            'severity': 'critical',
-            'title': 'Erreur Système',
-            'message': f'Erreur lors de la vérification des dépendances: {str(e)}'
-        })
+        errors.append(
+            {
+                "severity": "critical",
+                "title": "Erreur Système",
+                "message": f"Erreur lors de la vérification des dépendances: {str(e)}",
+            }
+        )
         fusion_available = False
-    
+
     return fusion_available, errors
 
 
 def _get_price_signal(services, ticker):
     """Récupère le signal de prix"""
     try:
-        data = services['data_service'].load_data(ticker)
+        data = services["data_service"].load_data(ticker)
         if data.empty:
             return 0.0
-        
+
         # Calculer la tendance sur les 5 dernières périodes
         recent_data = data.tail(5)
         if len(recent_data) < 2:
             return 0.0
-        
+
         # Tendance basée sur la variation moyenne
-        price_change = (recent_data['Close'].iloc[-1] - recent_data['Close'].iloc[0]) / recent_data['Close'].iloc[0]
-        
+        price_change = (recent_data["Close"].iloc[-1] - recent_data["Close"].iloc[0]) / recent_data["Close"].iloc[0]
+
         # Normaliser entre 0 et 1 (0.5 = neutre)
         signal = 0.5 + (price_change * 2)  # Multiplier par 2 pour amplifier
         return max(0.0, min(1.0, signal))  # Clamper entre 0 et 1
-    
+
     except Exception:
         return 0.0
 
@@ -838,10 +923,10 @@ def _get_price_signal(services, ticker):
 def _get_sentiment_signal(services, ticker):
     """Récupère le signal de sentiment"""
     try:
-        sentiment_summary = services['sentiment_service'].get_sentiment_summary(ticker)
-        if 'avg_sentiment' in sentiment_summary:
+        sentiment_summary = services["sentiment_service"].get_sentiment_summary(ticker)
+        if "avg_sentiment" in sentiment_summary:
             # Normaliser de [-1, 1] vers [0, 1]
-            return (sentiment_summary['avg_sentiment'] + 1) / 2
+            return (sentiment_summary["avg_sentiment"] + 1) / 2
         return 0.5  # Neutre par défaut
     except Exception:
         return 0.5
@@ -852,14 +937,14 @@ def _get_prediction_signal(services, ticker):
     try:
         if ticker != "SPY":
             return 0.5  # Neutre pour NVDA
-        
-        prediction = services['prediction_service'].predict_with_features(ticker, horizon=20)
-        
-        if prediction and 'predictions' in prediction and prediction['predictions']:
+
+        prediction = services["prediction_service"].predict_with_features(ticker, horizon=20)
+
+        if prediction and "predictions" in prediction and prediction["predictions"]:
             # Utiliser la première prédiction
-            pred_value = prediction['predictions'][0] if prediction['predictions'] else 0.5
+            pred_value = prediction["predictions"][0] if prediction["predictions"] else 0.5
             return max(0.0, min(1.0, pred_value))
-        
+
         return 0.5  # Neutre par défaut
     except Exception:
         return 0.5
@@ -868,107 +953,110 @@ def _get_prediction_signal(services, ticker):
 def show_decisions_table(ticker):
     """Affiche le tableau des décisions récentes"""
     st.header("📋 Décisions Récentes - Synthèse")
-    
+
     try:
         # Récupérer les données de validation historique
         from gui.services.historical_validation_service import HistoricalValidationService
+
         historical_validation = HistoricalValidationService()
         validation_summary = historical_validation.get_validation_summary(ticker, days=7)  # 7 derniers jours
-        validation_results = validation_summary.get('validation_results', [])
-        
+        validation_results = validation_summary.get("validation_results", [])
+
         # Récupérer les décisions en attente de validation
         decision_validation = DecisionValidationService()
         pending_decisions = decision_validation.get_pending_decisions(ticker)
-        
+
         # Combiner les décisions validées et en attente
         all_decisions = []
-        
+
         # Ajouter les décisions validées
         for decision in validation_results:
-            decision['status'] = 'validated'
+            decision["status"] = "validated"
             all_decisions.append(decision)
-        
+
         # Ajouter les décisions en attente
         for decision in pending_decisions:
-            decision['status'] = 'pending'
+            decision["status"] = "pending"
             all_decisions.append(decision)
-        
+
         if all_decisions:
             # Trier par timestamp pour avoir les plus récentes en premier
             def get_timestamp_key(decision):
-                timestamp = decision.get('timestamp', '')
+                timestamp = decision.get("timestamp", "")
                 if isinstance(timestamp, str):
                     try:
-                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                         if dt.tzinfo is None:
                             dt = dt.replace(tzinfo=timezone.utc)
                         return dt
                     except:
                         return datetime.min.replace(tzinfo=timezone.utc)
-                elif hasattr(timestamp, 'timestamp'):
+                elif hasattr(timestamp, "timestamp"):
                     if timestamp.tzinfo is None:
                         timestamp = timestamp.replace(tzinfo=timezone.utc)
                     return timestamp
                 else:
                     return datetime.min.replace(tzinfo=timezone.utc)
-            
+
             recent_decisions = sorted(all_decisions, key=get_timestamp_key, reverse=True)
-            
+
             # Limiter à 10 lignes pour l'affichage
             display_decisions = recent_decisions[:10]
-            
+
             # Créer le tableau avec les colonnes spécifiées
             table_data = []
             for i, decision in enumerate(display_decisions):
                 # Gérer l'affichage de l'heure correctement (Heure de Paris)
-                timestamp = decision.get('timestamp', 'N/A')
-                if hasattr(timestamp, 'strftime'):
+                timestamp = decision.get("timestamp", "N/A")
+                if hasattr(timestamp, "strftime"):
                     # Objet datetime - convertir en heure de Paris
                     import pytz
+
                     try:
                         # Si c'est déjà en UTC, convertir en Paris
                         if timestamp.tzinfo is None:
                             timestamp = timestamp.replace(tzinfo=pytz.UTC)
-                        paris_tz = pytz.timezone('Europe/Paris')
+                        paris_tz = pytz.timezone("Europe/Paris")
                         paris_time = timestamp.astimezone(paris_tz)
-                        heure_str = paris_time.strftime('%H:%M')
-                        date_str = paris_time.strftime('%d/%m')
+                        heure_str = paris_time.strftime("%H:%M")
+                        date_str = paris_time.strftime("%d/%m")
                     except:
-                        heure_str = timestamp.strftime('%H:%M')
-                        date_str = timestamp.strftime('%d/%m')
+                        heure_str = timestamp.strftime("%H:%M")
+                        date_str = timestamp.strftime("%d/%m")
                 elif isinstance(timestamp, str):
                     # Chaîne de caractères - essayer de parser
                     try:
-                        if 'T' in timestamp:
-                            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        if "T" in timestamp:
+                            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                         else:
-                            dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
-                        
+                            dt = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+
                         # Convertir en heure de Paris
                         import pytz
+
                         if dt.tzinfo is None:
                             dt = dt.replace(tzinfo=pytz.UTC)
-                        paris_tz = pytz.timezone('Europe/Paris')
+                        paris_tz = pytz.timezone("Europe/Paris")
                         paris_time = dt.astimezone(paris_tz)
-                        heure_str = paris_time.strftime('%H:%M')
-                        date_str = paris_time.strftime('%d/%m')
+                        heure_str = paris_time.strftime("%H:%M")
+                        date_str = paris_time.strftime("%d/%m")
                     except Exception as e:
-                        if ' ' in timestamp and ':' in timestamp:
-                            time_part = timestamp.split(' ')[1]
+                        if " " in timestamp and ":" in timestamp:
+                            time_part = timestamp.split(" ")[1]
                             heure_str = time_part[:5]
-                            date_str = timestamp.split(' ')[0][5:]
+                            date_str = timestamp.split(" ")[0][5:]
                         else:
                             heure_str = str(timestamp)[:5]
                             date_str = "N/A"
                 else:
                     heure_str = str(timestamp)[:5]
                     date_str = "N/A"
-                
+
                 # Calculer les prix et le gain
-                current_price = decision.get('current_price', 0)
-                decision_status = decision.get('status', 'validated')
-                
-                if decision_status == 'pending':
+                current_price = decision.get("current_price", 0)
+                decision_status = decision.get("status", "validated")
+
+                if decision_status == "pending":
                     # Décision en attente de validation
                     future_price = current_price  # Même prix pour l'instant
                     price_change = 0
@@ -976,36 +1064,38 @@ def show_decisions_table(ticker):
                     result_text = "⏳ En attente..."
                 else:
                     # Décision validée
-                    future_price = decision.get('future_price', 0)
-                    price_change = decision.get('price_change', 0)
-                    
+                    future_price = decision.get("future_price", 0)
+                    price_change = decision.get("price_change", 0)
+
                     # Calculer le gain en dollars
                     gain_dollars = future_price - current_price
-                    
+
                     # Déterminer le résultat basé sur la comparaison des prix
                     # Si prix -15min < prix +15min → Positif (hausse)
                     # Si prix -15min > prix +15min → Négatif (baisse)
                     is_positive = current_price < future_price
                     result_text = "Positif" if is_positive else "Négatif"
-                
-                table_data.append({
-                    'N°': i + 1,
-                    'Date': date_str,
-                    'Heure': heure_str,
-                    'Prix -15min': f"${current_price:.2f}",
-                    'Prix +15min': f"${future_price:.2f}",
-                    'Décision': decision.get('decision', 'N/A'),
-                    'Résultat': result_text,
-                    'Gain': f"${gain_dollars:+.2f}"
-                })
-            
+
+                table_data.append(
+                    {
+                        "N°": i + 1,
+                        "Date": date_str,
+                        "Heure": heure_str,
+                        "Prix -15min": f"${current_price:.2f}",
+                        "Prix +15min": f"${future_price:.2f}",
+                        "Décision": decision.get("decision", "N/A"),
+                        "Résultat": result_text,
+                        "Gain": f"${gain_dollars:+.2f}",
+                    }
+                )
+
             if table_data:
                 df_table = pd.DataFrame(table_data)
-                
+
                 # Afficher le tableau en pleine largeur
                 st.dataframe(
-                    df_table, 
-                    width='stretch',
+                    df_table,
+                    width="stretch",
                     height=300,
                     column_config={
                         "N°": st.column_config.NumberColumn("N°", width="small"),
@@ -1015,19 +1105,19 @@ def show_decisions_table(ticker):
                         "Prix +15min": st.column_config.TextColumn("Prix +15min", width="medium"),
                         "Décision": st.column_config.TextColumn("Décision", width="small"),
                         "Résultat": st.column_config.TextColumn("Résultat", width="medium"),
-                        "Gain": st.column_config.TextColumn("Gain", width="medium")
-                    }
+                        "Gain": st.column_config.TextColumn("Gain", width="medium"),
+                    },
                 )
-                
+
                 # Statistiques simplifiées
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Total Décisions", len(table_data))
                 with col2:
-                    positive_count = sum(1 for d in table_data if d['Résultat'] == 'Positif')
+                    positive_count = sum(1 for d in table_data if d["Résultat"] == "Positif")
                     st.metric("Résultats Positifs", f"{positive_count}/{len(table_data)}")
                 with col3:
-                    total_gain = sum(float(d['Gain'].replace('$', '').replace('+', '')) for d in table_data)
+                    total_gain = sum(float(d["Gain"].replace("$", "").replace("+", "")) for d in table_data)
                     st.metric("Gain Total", f"${total_gain:+.2f}")
                 with col4:
                     # Bouton de téléchargement pour toutes les données
@@ -1036,76 +1126,80 @@ def show_decisions_table(ticker):
                         full_table_data = []
                         for i, decision in enumerate(validation_results):
                             # Même logique que pour l'affichage mais pour toutes les données
-                            timestamp = decision.get('timestamp', 'N/A')
-                            if hasattr(timestamp, 'strftime'):
+                            timestamp = decision.get("timestamp", "N/A")
+                            if hasattr(timestamp, "strftime"):
                                 import pytz
+
                                 try:
                                     if timestamp.tzinfo is None:
                                         timestamp = timestamp.replace(tzinfo=pytz.UTC)
-                                    paris_tz = pytz.timezone('Europe/Paris')
+                                    paris_tz = pytz.timezone("Europe/Paris")
                                     paris_time = timestamp.astimezone(paris_tz)
-                                    heure_str = paris_time.strftime('%H:%M')
-                                    date_str = paris_time.strftime('%d/%m')
+                                    heure_str = paris_time.strftime("%H:%M")
+                                    date_str = paris_time.strftime("%d/%m")
                                 except:
-                                    heure_str = timestamp.strftime('%H:%M')
-                                    date_str = timestamp.strftime('%d/%m')
+                                    heure_str = timestamp.strftime("%H:%M")
+                                    date_str = timestamp.strftime("%d/%m")
                             elif isinstance(timestamp, str):
                                 try:
-                                    if 'T' in timestamp:
-                                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                                    if "T" in timestamp:
+                                        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                                     else:
-                                        dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+                                        dt = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
                                     import pytz
+
                                     if dt.tzinfo is None:
                                         dt = dt.replace(tzinfo=pytz.UTC)
-                                    paris_tz = pytz.timezone('Europe/Paris')
+                                    paris_tz = pytz.timezone("Europe/Paris")
                                     paris_time = dt.astimezone(paris_tz)
-                                    heure_str = paris_time.strftime('%H:%M')
-                                    date_str = paris_time.strftime('%d/%m')
+                                    heure_str = paris_time.strftime("%H:%M")
+                                    date_str = paris_time.strftime("%d/%m")
                                 except:
-                                    if ' ' in timestamp and ':' in timestamp:
-                                        time_part = timestamp.split(' ')[1]
+                                    if " " in timestamp and ":" in timestamp:
+                                        time_part = timestamp.split(" ")[1]
                                         heure_str = time_part[:5]
-                                        date_str = timestamp.split(' ')[0][5:]
+                                        date_str = timestamp.split(" ")[0][5:]
                                     else:
                                         heure_str = str(timestamp)[:5]
                                         date_str = "N/A"
                             else:
                                 heure_str = str(timestamp)[:5]
                                 date_str = "N/A"
-                            
-                            current_price = decision.get('current_price', 0)
-                            future_price = decision.get('future_price', 0)
-                            price_change = decision.get('price_change', 0)
+
+                            current_price = decision.get("current_price", 0)
+                            future_price = decision.get("future_price", 0)
+                            price_change = decision.get("price_change", 0)
                             gain_dollars = future_price - current_price
-                            
+
                             # Déterminer le résultat basé sur la comparaison des prix
                             # Si prix -15min < prix +15min → Positif (hausse)
                             # Si prix -15min > prix +15min → Négatif (baisse)
                             is_positive = current_price < future_price
                             result_text = "Positif" if is_positive else "Négatif"
-                            
-                            full_table_data.append({
-                                'N°': i + 1,
-                                'Date': date_str,
-                                'Heure': heure_str,
-                                'Prix -15min': f"${current_price:.2f}",
-                                'Prix +15min': f"${future_price:.2f}",
-                                'Décision': decision.get('decision', 'N/A'),
-                                'Résultat': result_text,
-                                'Gain': f"${gain_dollars:+.2f}"
-                            })
-                        
+
+                            full_table_data.append(
+                                {
+                                    "N°": i + 1,
+                                    "Date": date_str,
+                                    "Heure": heure_str,
+                                    "Prix -15min": f"${current_price:.2f}",
+                                    "Prix +15min": f"${future_price:.2f}",
+                                    "Décision": decision.get("decision", "N/A"),
+                                    "Résultat": result_text,
+                                    "Gain": f"${gain_dollars:+.2f}",
+                                }
+                            )
+
                         # Créer le CSV pour le téléchargement
                         full_df = pd.DataFrame(full_table_data)
                         csv = full_df.to_csv(index=False)
-                        
+
                         st.download_button(
                             label="📥 Télécharger toutes les données",
                             data=csv,
                             file_name=f"decisions_historiques_{ticker}_{datetime.now().strftime('%Y%m%d')}.csv",
                             mime="text/csv",
-                            help=f"Télécharge toutes les {len(validation_results)} décisions historiques"
+                            help=f"Télécharge toutes les {len(validation_results)} décisions historiques",
                         )
                     else:
                         st.info("Toutes les données sont affichées")
@@ -1120,28 +1214,28 @@ def show_decisions_table(ticker):
 def _check_market_status():
     """Vérifie l'état du marché (ouvert/fermé) - Horaires US (EDT/EST)"""
     import pytz
-    
+
     # Utiliser pytz pour gérer correctement l'heure d'été américaine
     try:
         # Timezone US Eastern (gère automatiquement EST/EDT)
-        us_eastern = pytz.timezone('US/Eastern')
+        us_eastern = pytz.timezone("US/Eastern")
         now_est = datetime.now(us_eastern)
         current_time = now_est.strftime("%H:%M")
-        
+
         # Heures de marché US (9h30 - 16h00, du lundi au vendredi)
         market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
-        
+
         # Vérifier si c'est un jour de semaine
         is_weekday = now_est.weekday() < 5  # 0-4 = lundi-vendredi
-        
+
         if is_weekday and market_open <= now_est <= market_close:
             return {
                 "is_open": True,
                 "current_time": current_time,
                 "timezone": "EDT" if now_est.dst() else "EST",
                 "next_close": market_close.strftime("%H:%M"),
-                "next_open": "09:30" if now_est.date() == market_open.date() else "Lundi 09:30"
+                "next_open": "09:30" if now_est.date() == market_open.date() else "Lundi 09:30",
             }
         else:
             # Calculer la prochaine ouverture
@@ -1152,38 +1246,39 @@ def _check_market_status():
                 next_open = now_est
             else:  # Après la fermeture
                 next_open = now_est + timedelta(days=1)
-            
+
             next_open = next_open.replace(hour=9, minute=30, second=0, microsecond=0)
-            
+
             return {
                 "is_open": False,
                 "current_time": current_time,
                 "timezone": "EDT" if now_est.dst() else "EST",
                 "next_open": next_open.strftime("%A %H:%M"),
-                "next_close": "16:00"
+                "next_close": "16:00",
             }
     except ImportError:
         # Fallback si pytz n'est pas disponible
         # Utiliser EDT (UTC-4) pour septembre 2025
-        from datetime import timezone, timedelta
+        from datetime import timedelta, timezone
+
         edt = timezone(timedelta(hours=-4))
         now_est = datetime.now(edt)
         current_time = now_est.strftime("%H:%M")
-        
+
         # Heures de marché US (9h30 - 16h00 EDT, du lundi au vendredi)
         market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
-        
+
         # Vérifier si c'est un jour de semaine
         is_weekday = now_est.weekday() < 5  # 0-4 = lundi-vendredi
-        
+
         if is_weekday and market_open <= now_est <= market_close:
             return {
                 "is_open": True,
                 "current_time": current_time,
                 "timezone": "EDT",
                 "next_close": market_close.strftime("%H:%M"),
-                "next_open": "09:30" if now_est.date() == market_open.date() else "Lundi 09:30"
+                "next_open": "09:30" if now_est.date() == market_open.date() else "Lundi 09:30",
             }
         else:
             # Calculer la prochaine ouverture
@@ -1194,15 +1289,15 @@ def _check_market_status():
                 next_open = now_est
             else:  # Après la fermeture
                 next_open = now_est + timedelta(days=1)
-            
+
             next_open = next_open.replace(hour=9, minute=30, second=0, microsecond=0)
-            
+
             return {
                 "is_open": False,
                 "current_time": current_time,
                 "timezone": "EDT",
                 "next_open": next_open.strftime("%A %H:%M"),
-                "next_close": "16:00"
+                "next_close": "16:00",
             }
 
 
@@ -1214,15 +1309,15 @@ def _get_next_decision_time():
     """
     try:
         import pytz
-        
+
         # Timezone US Eastern (gère automatiquement EST/EDT)
-        us_eastern = pytz.timezone('US/Eastern')
+        us_eastern = pytz.timezone("US/Eastern")
         now_est = datetime.now(us_eastern)
-        
+
         # Heures de marché US (9:30-16:00)
         market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
-        
+
         # Si on est avant l'ouverture, prochaine décision à 9:30
         if now_est < market_open:
             next_decision = market_open
@@ -1233,7 +1328,7 @@ def _get_next_decision_time():
             # On est pendant les heures de marché, calculer la prochaine fenêtre de 15 minutes
             current_minute = now_est.minute
             current_hour = now_est.hour
-            
+
             # Calculer la prochaine fenêtre de 15 minutes
             if current_minute < 30:
                 next_minute = 30
@@ -1242,29 +1337,30 @@ def _get_next_decision_time():
             else:
                 next_minute = 0
                 current_hour += 1
-            
+
             # Si on dépasse 16:00, prochaine décision demain à 9:30
             if current_hour >= 16:
                 next_decision = market_open + timedelta(days=1)
             else:
                 next_decision = now_est.replace(hour=current_hour, minute=next_minute, second=0, microsecond=0)
-        
+
         # Convertir en heure de Paris pour l'affichage
-        paris_tz = pytz.timezone('Europe/Paris')
+        paris_tz = pytz.timezone("Europe/Paris")
         paris_time = next_decision.astimezone(paris_tz)
         return paris_time.strftime("%H:%M")
-        
+
     except ImportError:
         # Fallback si pytz n'est pas disponible
         # Utiliser EDT (UTC-4) pour septembre 2025
-        from datetime import timezone, timedelta
+        from datetime import timedelta, timezone
+
         edt = timezone(timedelta(hours=-4))
         now_est = datetime.now(edt)
-        
+
         # Heures de marché US (9:30-16:00 EDT)
         market_open = now_est.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now_est.replace(hour=16, minute=0, second=0, microsecond=0)
-        
+
         # Si on est avant l'ouverture, prochaine décision à 9:30
         if now_est < market_open:
             next_decision = market_open
@@ -1275,7 +1371,7 @@ def _get_next_decision_time():
             # On est pendant les heures de marché, calculer la prochaine fenêtre de 15 minutes
             current_minute = now_est.minute
             current_hour = now_est.hour
-            
+
             # Calculer la prochaine fenêtre de 15 minutes
             if current_minute < 30:
                 next_minute = 30
@@ -1284,13 +1380,13 @@ def _get_next_decision_time():
             else:
                 next_minute = 0
                 current_hour += 1
-            
+
             # Si on dépasse 16:00, prochaine décision demain à 9:30
             if current_hour >= 16:
                 next_decision = market_open + timedelta(days=1)
             else:
                 next_decision = now_est.replace(hour=current_hour, minute=next_minute, second=0, microsecond=0)
-        
+
         # Convertir en heure de Paris pour l'affichage (fallback)
         # Calculer le décalage horaire (EDT = UTC-4, Paris = UTC+2 en été)
         paris_offset = 6  # 6 heures de décalage entre EDT et Paris en été

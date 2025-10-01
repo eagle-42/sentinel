@@ -4,15 +4,15 @@ Modules fondamentaux : fusion, sentiment, prédiction
 """
 
 from .fusion import AdaptiveFusion, FusionConfig, MarketRegime
-from .sentiment import SentimentAnalyzer, FinBertAnalyzer
-from .prediction import PricePredictor, LSTMPredictor
+from .prediction import LSTMPredictor, PricePredictor
+from .sentiment import FinBertAnalyzer, SentimentAnalyzer
 
 __all__ = [
     "AdaptiveFusion",
-    "FusionConfig", 
+    "FusionConfig",
     "MarketRegime",
     "SentimentAnalyzer",
     "FinBertAnalyzer",
     "PricePredictor",
-    "LSTMPredictor"
+    "LSTMPredictor",
 ]
