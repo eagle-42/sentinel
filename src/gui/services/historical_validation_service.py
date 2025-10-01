@@ -183,6 +183,24 @@ class HistoricalValidationService:
                 # Récupérer le prix 15 minutes plus tard depuis les vraies données
                 future_price = self._get_future_price(prices_df, closest_price_data, timestamp)
 
+                # Si pas de prix futur (marché fermé), marquer comme "En attente"
+                if future_price is None:
+                    result = {
+                        "index": i + 1,
+                        "timestamp": timestamp,
+                        "signal": signal,
+                        "decision": decision_type,
+                        "confidence": confidence,
+                        "current_price": current_price,
+                        "future_price": current_price,  # Afficher le prix actuel
+                        "price_change": 0.0,
+                        "is_correct": None,
+                        "accuracy": None,
+                        "status": "⏳ En attente (marché fermé)",
+                    }
+                    validation_results.append(result)
+                    continue
+
                 # Calculer le changement de prix
                 price_change = (future_price - current_price) / current_price * 100
 
@@ -214,18 +232,21 @@ class HistoricalValidationService:
 
                 validation_results.append(result)
 
-            # Calculer les statistiques globales
+            # Calculer les statistiques globales (exclure les décisions en attente)
+            validated_results = [r for r in validation_results if r["is_correct"] is not None]
             total_decisions = len(validation_results)
-            correct_decisions = sum(1 for r in validation_results if r["is_correct"])
-            accuracy_rate = correct_decisions / total_decisions if total_decisions > 0 else 0
+            total_validated = len(validated_results)
+            
+            correct_decisions = sum(1 for r in validated_results if r["is_correct"])
+            accuracy_rate = correct_decisions / total_validated if total_validated > 0 else 0
             avg_accuracy = (
-                sum(r["accuracy"] for r in validation_results) / total_decisions if total_decisions > 0 else 0
+                sum(r["accuracy"] for r in validated_results) / total_validated if total_validated > 0 else 0
             )
 
-            # Statistiques par type de décision
-            buy_decisions = [r for r in validation_results if r["decision"].upper() in ["BUY", "ACHETER"]]
-            sell_decisions = [r for r in validation_results if r["decision"].upper() in ["SELL", "VENDRE"]]
-            hold_decisions = [r for r in validation_results if r["decision"].upper() in ["HOLD", "ATTENDRE"]]
+            # Statistiques par type de décision (exclure en attente)
+            buy_decisions = [r for r in validated_results if r["decision"].upper() in ["BUY", "ACHETER"]]
+            sell_decisions = [r for r in validated_results if r["decision"].upper() in ["SELL", "VENDRE"]]
+            hold_decisions = [r for r in validated_results if r["decision"].upper() in ["HOLD", "ATTENDRE"]]
 
             buy_accuracy = sum(r["accuracy"] for r in buy_decisions) / len(buy_decisions) if buy_decisions else 0
             sell_accuracy = sum(r["accuracy"] for r in sell_decisions) / len(sell_decisions) if sell_decisions else 0
@@ -278,15 +299,24 @@ class HistoricalValidationService:
             future_idx = current_idx + 1
 
             if future_idx < len(prices_df):
-                # Prix réel 15min plus tard
-                future_price = prices_df.iloc[future_idx]["close"]
-                logger.info(f"📊 Prix réel: ${current_price:.2f} → ${future_price:.2f} (15min plus tard)")
-                return future_price
+                future_row = prices_df.iloc[future_idx]
+                future_price = future_row["close"]
+                future_time = future_row["ts_utc"]
+                
+                # Vérifier que c'est vraiment 15 minutes plus tard (tolérance 20 min)
+                time_diff_minutes = (future_time - timestamp).total_seconds() / 60
+                
+                if abs(time_diff_minutes - 15) <= 20:
+                    logger.info(f"📊 Prix réel: ${current_price:.2f} → ${future_price:.2f} (+{time_diff_minutes:.0f}min)")
+                    return future_price
+                else:
+                    # Trop loin dans le temps, marché fermé
+                    logger.warning(f"⚠️ Pas de prix +15min (marché fermé). Prix actuel: ${current_price:.2f}")
+                    return None  # Indique qu'il n'y a pas de prix futur
             else:
-                # Pas de données futures, utiliser le dernier prix disponible
-                future_price = prices_df.iloc[-1]["close"]
-                logger.info(f"📊 Prix final: ${current_price:.2f} → ${future_price:.2f} (dernière donnée)")
-                return future_price
+                # Fin des données, marché fermé
+                logger.warning(f"⚠️ Pas de prix +15min (fin des données). Prix actuel: ${current_price:.2f}")
+                return None  # Indique qu'il n'y a pas de prix futur
 
         except Exception as e:
             logger.error(f"❌ Erreur récupération prix futur: {e}")
