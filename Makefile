@@ -31,6 +31,9 @@ start: ## Démarrer l'application (avec Ollama)
 	@make start-ollama
 	@echo "$(YELLOW)⏳ Attente du démarrage d'Ollama...$(NC)"
 	@sleep 3
+	@make start-orchestrator
+	@echo "$(YELLOW)⏳ Attente du démarrage de l'orchestrateur...$(NC)"
+	@sleep 2
 	@make start-streamlit
 	@echo "$(GREEN)✅ Application démarrée sur http://localhost:$(STREAMLIT_PORT)$(NC)"
 
@@ -41,6 +44,15 @@ start-ollama: ## Démarrer Ollama en arrière-plan
 		echo "$(GREEN)✅ Ollama démarré$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️ Ollama déjà en cours d'exécution$(NC)"; \
+	fi
+
+start-orchestrator: ## Démarrer l'orchestrateur (sentinel_main)
+	@echo "$(YELLOW)🤖 Démarrage de l'orchestrateur...$(NC)"
+	@if ! pgrep -f "sentinel_main.py" > /dev/null; then \
+		nohup uv run python scripts/sentinel_main.py > data/logs/sentinel_orchestrator.log 2>&1 & \
+		echo "$(GREEN)✅ Orchestrateur démarré$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️ Orchestrateur déjà en cours d'exécution$(NC)"; \
 	fi
 
 start-streamlit: ## Démarrer Streamlit
@@ -55,6 +67,7 @@ start-streamlit: ## Démarrer Streamlit
 stop: ## Arrêter l'application
 	@echo "$(YELLOW)🛑 Arrêt de Sentinel2...$(NC)"
 	@make stop-streamlit
+	@make stop-orchestrator
 	@make stop-ollama
 	@echo "$(GREEN)✅ Application arrêtée$(NC)"
 
@@ -62,6 +75,11 @@ stop-streamlit: ## Arrêter Streamlit
 	@echo "$(YELLOW)📊 Arrêt de Streamlit...$(NC)"
 	@pkill -f "streamlit run" || true
 	@echo "$(GREEN)✅ Streamlit arrêté$(NC)"
+
+stop-orchestrator: ## Arrêter l'orchestrateur
+	@echo "$(YELLOW)🤖 Arrêt de l'orchestrateur...$(NC)"
+	@pkill -f "sentinel_main.py" || true
+	@echo "$(GREEN)✅ Orchestrateur arrêté$(NC)"
 
 stop-ollama: ## Arrêter Ollama
 	@echo "$(YELLOW)🧠 Arrêt d'Ollama...$(NC)"
@@ -77,6 +95,13 @@ restart: ## Redémarrer l'application
 
 status: ## Vérifier le statut de l'application
 	@echo "$(YELLOW)📊 Statut de Sentinel2:$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Orchestrateur:$(NC)"
+	@if pgrep -f "sentinel_main.py" > /dev/null; then \
+		echo "  $(GREEN)✅ En cours d'exécution$(NC)"; \
+	else \
+		echo "  $(RED)❌ Arrêté$(NC)"; \
+	fi
 	@echo ""
 	@echo "$(YELLOW)Streamlit:$(NC)"
 	@if pgrep -f "streamlit run" > /dev/null; then \
