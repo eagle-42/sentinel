@@ -2,42 +2,43 @@
 name: sentinel2
 prefect-version: 3.0.0+
 
-# Work pools
-work_pools:
-  - name: sentinel-pool
-    type: process
-    concurrency_limit: 5
-
 # Deployments
 deployments:
-  - name: data-refresh
-    entrypoint: flows/sentinel_flows.py:data_refresh_flow
-    work_pool:
-      name: sentinel-pool
+  - name: prices-15min-production
+    entrypoint: flows/sentinel_flows.py:prices_15min_flow
+    schedule:
+      cron: "*/15 * * * *"
+      timezone: America/New_York
+    tags: ["production", "prices", "15min"]
+    
+  - name: news-sentiment-production
+    entrypoint: flows/sentinel_flows.py:news_sentiment_flow
     schedule:
       cron: "*/4 * * * *"
       timezone: America/New_York
+    tags: ["production", "news", "sentiment"]
     
-  - name: trading
+  - name: trading-production
     entrypoint: flows/sentinel_flows.py:trading_flow
-    work_pool:
-      name: sentinel-pool
     schedule:
       cron: "*/15 9-16 * * 1-5"
       timezone: America/New_York
     parameters:
       force: false
-
-  - name: full-system
+    tags: ["production", "trading"]
+    
+  - name: historical-daily
+    entrypoint: flows/sentinel_flows.py:historical_update_flow
+    schedule:
+      cron: "30 16 * * 1-5"
+      timezone: America/New_York
+    tags: ["production", "historical"]
+    
+  - name: full-system-startup
     entrypoint: flows/sentinel_flows.py:full_system_flow
-    work_pool:
-      name: sentinel-pool
+    tags: ["production", "startup"]
 
-# Logging
-logging:
-  level: INFO
-  format: "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-
-# UI Settings
-ui:
-  api_url: http://localhost:4200
+# Pull step
+pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: /Users/eagle/DevTools/sentinel2
