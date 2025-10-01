@@ -114,13 +114,28 @@ class MonitoringService:
             }
 
     def get_recent_trading_decisions(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Récupère les décisions de trading récentes"""
+        """Récupère les VRAIES décisions de trading depuis le fichier JSON"""
         try:
-            # Simulation de décisions (en production, récupérer depuis la base)
-            if not self.trading_decisions:
-                self._generate_sample_decisions()
-
-            return self.trading_decisions[-limit:] if self.trading_decisions else []
+            from pathlib import Path
+            import json
+            
+            # Charger les VRAIES décisions
+            decisions_file = Path("data/trading/decisions_log/trading_decisions.json")
+            
+            if decisions_file.exists():
+                with open(decisions_file, "r") as f:
+                    decisions = json.load(f)
+                    # Convertir timestamp string en datetime pour affichage
+                    for d in decisions:
+                        if isinstance(d.get("timestamp"), str):
+                            d["timestamp"] = d["timestamp"]
+                    return decisions[-limit:] if decisions else []
+            else:
+                logger.warning("⚠️ Fichier décisions introuvable, utilisation données simulées")
+                if not self.trading_decisions:
+                    self._generate_sample_decisions()
+                return self.trading_decisions[-limit:] if self.trading_decisions else []
+                
         except Exception as e:
             logger.error(f"❌ Erreur décisions trading: {e}")
             return []

@@ -133,8 +133,8 @@ class NewsRefresher:
                 logger.info(f"✅ {len(feed.entries)} articles récupérés depuis {feed_url}")
 
             except Exception as e:
-                logger.error(f"❌ Erreur RSS {feed_url}: {e}")
-                continue
+                logger.warning(f"⚠️ Erreur RSS {feed_url}: {e} (passé)")
+                continue  # Continue avec les autres feeds
 
         return news_items
 

@@ -223,5 +223,36 @@ test: ## Lancer les tests
 check-prod: ## Vérifier configuration production
 	@bash scripts/check_production.sh
 
+check-all: ## Vérification complète (services + logs + erreurs)
+	@echo "$(YELLOW)🔍 VÉRIFICATION COMPLÈTE SENTINEL2$(NC)"
+	@echo "========================================="
+	@echo ""
+	@echo "1️⃣ STATUT SERVICES"
+	@make status
+	@echo ""
+	@echo "2️⃣ LOGS RÉCENTS (dernières erreurs)"
+	@echo "-----------------------------------"
+	@if [ -f "data/logs/prefect_worker.log" ]; then \
+		echo "$(YELLOW)Prefect Worker:$(NC)"; \
+		grep -i "error\|exception\|failed" data/logs/prefect_worker.log | tail -5 || echo "  $(GREEN)✅ Pas d'erreur$(NC)"; \
+	fi
+	@echo ""
+	@if [ -f "data/logs/sentinel_orchestrator.log" ]; then \
+		echo "$(YELLOW)Orchestrateur:$(NC)"; \
+		grep -i "error\|exception\|failed" data/logs/sentinel_orchestrator.log | tail -5 || echo "  $(GREEN)✅ Pas d'erreur$(NC)"; \
+	fi
+	@echo ""
+	@if [ -f "data/logs/trading_decisions.log" ]; then \
+		echo "$(YELLOW)Trading:$(NC)"; \
+		grep -i "error\|exception" data/logs/trading_decisions.log | tail -5 || echo "  $(GREEN)✅ Pas d'erreur$(NC)"; \
+	fi
+	@echo ""
+	@echo "3️⃣ FLOWS PREFECT RÉCENTS"
+	@echo "------------------------"
+	@uv run prefect flow-run ls --limit 3 2>/dev/null || echo "  $(RED)❌ Impossible de lister les flows$(NC)"
+	@echo ""
+	@echo "========================================="
+	@echo "$(GREEN)✅ Vérification terminée$(NC)"
+
 # Commande par défaut
 .DEFAULT_GOAL := help
