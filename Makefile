@@ -154,6 +154,20 @@ prod: ## Mode production (avec Ollama)
 	@make start
 	@echo "$(GREEN)✅ Mode production activé$(NC)"
 
+prefect-start: ## Démarrer Prefect (orchestration)
+	@echo "$(YELLOW)🚀 Démarrage Prefect...$(NC)"
+	@bash scripts/start_prefect.sh
+
+prefect-ui: ## Ouvrir Prefect UI
+	@echo "$(YELLOW)📊 Ouverture Prefect UI...$(NC)"
+	@open http://localhost:4200 || xdg-open http://localhost:4200 || echo "Ouvrir: http://localhost:4200"
+
+prefect-stop: ## Arrêter Prefect
+	@echo "$(YELLOW)🛑 Arrêt Prefect...$(NC)"
+	@pkill -f "prefect server" || true
+	@pkill -f "prefect worker" || true
+	@echo "$(GREEN)✅ Prefect arrêté$(NC)"
+
 test: ## Lancer les tests
 	@echo "$(YELLOW)🧪 Lancement des tests...$(NC)"
 	uv run python -m pytest tests/ -v

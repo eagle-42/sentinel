@@ -1,0 +1,43 @@
+# Prefect Configuration for Sentinel2
+name: sentinel2
+prefect-version: 3.0.0+
+
+# Work pools
+work_pools:
+  - name: sentinel-pool
+    type: process
+    concurrency_limit: 5
+
+# Deployments
+deployments:
+  - name: data-refresh
+    entrypoint: flows/sentinel_flows.py:data_refresh_flow
+    work_pool:
+      name: sentinel-pool
+    schedule:
+      cron: "*/4 * * * *"
+      timezone: America/New_York
+    
+  - name: trading
+    entrypoint: flows/sentinel_flows.py:trading_flow
+    work_pool:
+      name: sentinel-pool
+    schedule:
+      cron: "*/15 9-16 * * 1-5"
+      timezone: America/New_York
+    parameters:
+      force: false
+
+  - name: full-system
+    entrypoint: flows/sentinel_flows.py:full_system_flow
+    work_pool:
+      name: sentinel-pool
+
+# Logging
+logging:
+  level: INFO
+  format: "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+
+# UI Settings
+ui:
+  api_url: http://localhost:4200
