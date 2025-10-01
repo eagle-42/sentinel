@@ -70,14 +70,7 @@ start-prefect-worker: ## Démarrer le worker Prefect
 		echo "$(YELLOW)⚠️ Worker déjà en cours d'exécution$(NC)"; \
 	fi
 
-start-orchestrator: ## Démarrer l'orchestrateur (sentinel_main)
-	@echo "$(YELLOW)🤖 Démarrage de l'orchestrateur...$(NC)"
-	@if ! pgrep -f "sentinel_main.py" > /dev/null; then \
-		nohup uv run python scripts/sentinel_main.py > data/logs/sentinel_orchestrator.log 2>&1 & \
-		echo "$(GREEN)✅ Orchestrateur démarré$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠️ Orchestrateur déjà en cours d'exécution$(NC)"; \
-	fi
+# Orchestrateur supprimé - remplacé par Prefect Worker
 
 start-streamlit: ## Démarrer Streamlit
 	@echo "$(YELLOW)📊 Démarrage de Streamlit...$(NC)"
@@ -100,10 +93,7 @@ stop-streamlit: ## Arrêter Streamlit
 	@pkill -f "streamlit run" || true
 	@echo "$(GREEN)✅ Streamlit arrêté$(NC)"
 
-stop-orchestrator: ## Arrêter l'orchestrateur
-	@echo "$(YELLOW)🤖 Arrêt de l'orchestrateur...$(NC)"
-	@pkill -f "sentinel_main.py" || true
-	@echo "$(GREEN)✅ Orchestrateur arrêté$(NC)"
+# stop-orchestrator supprimé - non nécessaire
 
 stop-prefect: ## Arrêter Prefect (serveur + worker)
 	@echo "$(YELLOW)🚀 Arrêt de Prefect...$(NC)"
@@ -157,10 +147,10 @@ status: ## Vérifier le statut de l'application COMPLÈTE
 		echo "  $(RED)❌ Arrêté$(NC)"; \
 	fi
 
-logs: ## Afficher les logs de l'application
-	@echo "$(YELLOW)📋 Logs de Sentinel2:$(NC)"
-	@if [ -f "data/logs/sentinel_main.log" ]; then \
-		tail -f data/logs/sentinel_main.log; \
+logs: ## Afficher les logs Prefect Worker
+	@echo "$(YELLOW)📋 Logs Prefect Worker:$(NC)"
+	@if [ -f "data/logs/prefect_worker.log" ]; then \
+		tail -f data/logs/prefect_worker.log; \
 	else \
 		echo "$(RED)❌ Aucun fichier de log trouvé$(NC)"; \
 	fi
@@ -227,10 +217,6 @@ check-all: ## Vérification complète (services + logs + erreurs)
 		grep -i "error\|exception\|failed" data/logs/prefect_worker.log | tail -5 || echo "  $(GREEN)✅ Pas d'erreur$(NC)"; \
 	fi
 	@echo ""
-	@if [ -f "data/logs/sentinel_orchestrator.log" ]; then \
-		echo "$(YELLOW)Orchestrateur:$(NC)"; \
-		grep -i "error\|exception\|failed" data/logs/sentinel_orchestrator.log | tail -5 || echo "  $(GREEN)✅ Pas d'erreur$(NC)"; \
-	fi
 	@echo ""
 	@if [ -f "data/logs/trading_decisions.log" ]; then \
 		echo "$(YELLOW)Trading:$(NC)"; \
