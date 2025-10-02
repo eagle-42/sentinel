@@ -987,17 +987,18 @@ def show_decisions_table(ticker):
                 return ts.strftime("%Y-%m-%d %H:%M:%S")
             return str(ts)[:19]
 
-        # Ajouter les décisions validées
-        for decision in validation_results:
-            decision["status"] = "validated"
+        # IMPORTANT: Ajouter PENDING d'abord pour afficher "⏳ Attente..." au lieu des prix validés
+        # Ajouter les décisions en attente EN PREMIER
+        for decision in pending_decisions:
+            decision["status"] = "pending"
             timestamp_normalized = normalize_timestamp(decision.get("timestamp", ""))
             if timestamp_normalized not in seen_timestamps:
                 all_decisions.append(decision)
                 seen_timestamps.add(timestamp_normalized)
 
-        # Ajouter les décisions en attente (uniquement si pas déjà validées)
-        for decision in pending_decisions:
-            decision["status"] = "pending"
+        # Ajouter les décisions validées (ignorées si déjà en attente)
+        for decision in validation_results:
+            decision["status"] = "validated"
             timestamp_normalized = normalize_timestamp(decision.get("timestamp", ""))
             if timestamp_normalized not in seen_timestamps:
                 all_decisions.append(decision)
