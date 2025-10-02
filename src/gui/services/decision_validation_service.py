@@ -490,6 +490,7 @@ class DecisionValidationService:
                 "decision": decision,
                 "fusion_score": fusion_score,
                 "current_price": current_price,
+                "future_price": validation_result.get("future_price"),  # 🔧 AJOUTÉ!
                 "validation_time": validation_result.get("validation_time", datetime.now()).isoformat(),
                 "accuracy": validation_result.get("accuracy"),
                 "price_change": validation_result.get("price_change"),
