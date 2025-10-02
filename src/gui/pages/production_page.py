@@ -970,21 +970,38 @@ def show_decisions_table(ticker):
         all_decisions = []
         seen_timestamps = set()
 
+        def normalize_timestamp(ts):
+            """Normalise le timestamp pour la comparaison (enlève microsecondes et timezone)"""
+            if isinstance(ts, str):
+                # Parse et normalise
+                try:
+                    if "T" in ts:
+                        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    else:
+                        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                    # Retourner format normalisé sans microsecondes
+                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+                except:
+                    return str(ts)[:19]  # Garder YYYY-MM-DD HH:MM:SS
+            elif hasattr(ts, "strftime"):
+                return ts.strftime("%Y-%m-%d %H:%M:%S")
+            return str(ts)[:19]
+
         # Ajouter les décisions validées
         for decision in validation_results:
             decision["status"] = "validated"
-            timestamp_str = str(decision.get("timestamp", ""))
-            if timestamp_str not in seen_timestamps:
+            timestamp_normalized = normalize_timestamp(decision.get("timestamp", ""))
+            if timestamp_normalized not in seen_timestamps:
                 all_decisions.append(decision)
-                seen_timestamps.add(timestamp_str)
+                seen_timestamps.add(timestamp_normalized)
 
         # Ajouter les décisions en attente (uniquement si pas déjà validées)
         for decision in pending_decisions:
             decision["status"] = "pending"
-            timestamp_str = str(decision.get("timestamp", ""))
-            if timestamp_str not in seen_timestamps:
+            timestamp_normalized = normalize_timestamp(decision.get("timestamp", ""))
+            if timestamp_normalized not in seen_timestamps:
                 all_decisions.append(decision)
-                seen_timestamps.add(timestamp_str)
+                seen_timestamps.add(timestamp_normalized)
 
         if all_decisions:
             # Trier par timestamp pour avoir les plus récentes en premier
