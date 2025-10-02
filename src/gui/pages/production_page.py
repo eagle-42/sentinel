@@ -1143,8 +1143,13 @@ def show_decisions_table(ticker):
                     positive_count = sum(1 for d in table_data if d["Résultat"] == "Positif")
                     st.metric("Résultats Positifs", f"{positive_count}/{len(table_data)}")
                 with col3:
-                    total_gain = sum(float(d["Gain"].replace("$", "").replace("+", "")) for d in table_data)
-                    st.metric("Gain Total", f"${total_gain:+.2f}")
+                    # Calculer le gain total (ignorer les décisions en attente avec "⏳")
+                    validated_gains = [d for d in table_data if d["Gain"] != "⏳"]
+                    if validated_gains:
+                        total_gain = sum(float(d["Gain"].replace("$", "").replace("+", "")) for d in validated_gains)
+                        st.metric("Gain Total", f"${total_gain:+.2f}")
+                    else:
+                        st.metric("Gain Total", "En attente...")
                 with col4:
                     # Bouton de téléchargement pour toutes les données
                     if len(validation_results) > 10:
