@@ -522,10 +522,10 @@ class DecisionValidationService:
                 return pd.DataFrame()
 
             df = pd.read_parquet(self.validation_file)
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
 
-            # Filtrer par ticker et période
-            cutoff_date = datetime.now() - timedelta(days=days)
+            # Filtrer par ticker et période (avec timezone UTC)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             filtered_df = df[(df["ticker"] == ticker) & (df["timestamp"] >= cutoff_date)].sort_values("timestamp")
 
             return filtered_df
