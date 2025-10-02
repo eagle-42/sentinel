@@ -51,9 +51,9 @@ class TestPricePredictor:
     @pytest.fixture
     def sample_data(self):
         """Fixture données test"""
-        # 1000 jours pour avoir assez de données après split 60/20/20 et window 216
-        # Train=600, Val=200, Test=200 → Train-216=384 séquences (OK)
-        n_days = 1000
+        # 1200 jours pour avoir assez de données après split 60/20/20 et window 216
+        # Train=720, Val=240, Test=240 → Val-216=24 séquences (OK)
+        n_days = 1200
         dates = pd.date_range("2023-01-01", periods=n_days, freq="D")
         data = pd.DataFrame(
             {

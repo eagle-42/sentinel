@@ -131,25 +131,30 @@ class PricePredictor:
         return np.array(X), np.array(y)
 
     def predict(self, data: pd.DataFrame, horizon: int = 7) -> Dict[str, Any]:
-        """Prédiction CLOSE ONLY"""
+        """Prédiction avec les features utilisées lors de l'entraînement"""
         if not self.is_loaded:
             logger.error("❌ Modèle non chargé")
             return {"error": "Modèle non chargé"}
 
         try:
-            # Extraire CLOSE
-            close_col = None
-            for col in data.columns:
-                if col.upper() == "CLOSE":
-                    close_col = col
-                    break
-
-            if not close_col:
-                logger.error("❌ Colonne CLOSE non trouvée")
-                return {"error": "Colonne CLOSE non trouvée"}
-
-            features_data = data[[close_col]].values
-            logger.info(f"🎯 Mode CLOSE ONLY: {len(features_data)} jours")
+            # Utiliser les mêmes features que lors de l'entraînement
+            if hasattr(self, 'feature_cols') and self.feature_cols:
+                # Utiliser les features sauvegardées
+                available_cols = [col for col in self.feature_cols if col in data.columns]
+                if not available_cols:
+                    logger.error(f"❌ Aucune feature d'entraînement trouvée. Attendu: {self.feature_cols}")
+                    return {"error": "Features manquantes"}
+                features_data = data[available_cols].values
+                logger.info(f"🎯 Utilisation des features d'entraînement: {available_cols}")
+            else:
+                # Fallback: extraire colonnes avec _RETURN (comme dans train), EXCLURE DATE et TARGET
+                feature_cols = [col for col in data.columns if "_RETURN" in col]
+                feature_cols = [col for col in feature_cols if col.upper() not in ["DATE", "TARGET"]]  # Exclure DATE et TARGET
+                if not feature_cols:
+                    logger.error("❌ Aucune colonne _RETURN trouvée")
+                    return {"error": "Features _RETURN manquantes"}
+                features_data = data[feature_cols].values
+                logger.info(f"🎯 Features prédiction: {feature_cols} (shape: {features_data.shape})")
 
             # Scaler
             features_scaled = self.scaler.transform(features_data)
@@ -176,12 +181,18 @@ class PricePredictor:
                     pred = self.model(last_seq).cpu().numpy()[0, 0]
                     fut_preds_scaled.append(pred)
 
-            # Dénormaliser
-            hist_dummy = np.array(hist_preds_scaled).reshape(-1, 1)
-            hist_preds = self.scaler.inverse_transform(hist_dummy).flatten().tolist()
-
-            fut_dummy = np.array(fut_preds_scaled).reshape(-1, 1)
-            fut_preds = self.scaler.inverse_transform(fut_dummy).flatten().tolist()
+            # Dénormaliser - créer un array 4D avec les prédictions dans la première colonne
+            n_features = self.scaler.n_features_in_
+            
+            # Historique
+            hist_dummy = np.zeros((len(hist_preds_scaled), n_features))
+            hist_dummy[:, 0] = hist_preds_scaled
+            hist_preds = self.scaler.inverse_transform(hist_dummy)[:, 0].tolist()
+            
+            # Futures
+            fut_dummy = np.zeros((len(fut_preds_scaled), n_features))
+            fut_dummy[:, 0] = fut_preds_scaled
+            fut_preds = self.scaler.inverse_transform(fut_dummy)[:, 0].tolist()
 
             logger.info(f"✅ Prédictions: {len(hist_preds)} hist + {len(fut_preds)} futures")
 

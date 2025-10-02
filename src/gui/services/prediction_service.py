@@ -82,30 +82,59 @@ class PredictionService:
             return self._create_empty_prediction()
 
     def predict_with_features(self, ticker: str, horizon: int = 20) -> Dict[str, Any]:
-        """Génère des prédictions LSTM en chargeant les features techniques"""
+        """Génère des prédictions LSTM avec les données RETURNS"""
         try:
-            # Charger directement les features techniques depuis le fichier
             from constants import CONSTANTS
+            from gui.services.data_service import DataService
 
-            features_path = CONSTANTS.get_data_path("features", ticker)
-            if not features_path.exists():
-                logger.warning(f"⚠️ Fichier de features non trouvé: {features_path}")
+            # Charger les données temps réel 15min
+            data_service = DataService()
+            df_original = data_service.load_data(ticker, use_historical=False)
+            
+            if df_original.empty:
+                logger.warning(f"⚠️ Aucune donnée pour {ticker}")
                 return self._create_empty_prediction()
 
-            # Charger les features
-            features_df = pd.read_parquet(features_path)
-            features_df.columns = features_df.columns.str.upper()
-
-            if features_df.empty:
-                logger.warning(f"⚠️ Aucune feature trouvée pour {ticker}")
+            # Créer un nouveau DataFrame propre sans index
+            df = df_original.reset_index(drop=True).copy()
+            
+            # Identifier et renommer colonnes OHLC (minuscules → Majuscules)
+            col_map = {'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close'}
+            df.columns = [col_map.get(c.lower(), c) for c in df.columns]
+            
+            # Vérifier colonnes requises
+            required = ['Open', 'High', 'Low', 'Close']
+            if not all(c in df.columns for c in required):
+                logger.error(f"❌ Colonnes manquantes. Attendu: {required}, Trouvé: {df.columns.tolist()}")
                 return self._create_empty_prediction()
+            
+            # Calculer RETURNS
+            df_returns = pd.DataFrame({
+                'DATE': pd.to_datetime(df['ts_utc']) if 'ts_utc' in df.columns else pd.date_range(end=pd.Timestamp.now(), periods=len(df), freq='15T'),
+                'Open_RETURN': df['Open'].pct_change(),
+                'High_RETURN': df['High'].pct_change(),
+                'Low_RETURN': df['Low'].pct_change(),
+                'Close_RETURN': df['Close'].pct_change(),
+            })
+            
+            # TARGET = Close_RETURN
+            df_returns['TARGET'] = df_returns['Close_RETURN']
+            
+            # Nettoyer NaN
+            df_returns = df_returns.dropna().reset_index(drop=True)
+            
+            if df_returns.empty or len(df_returns) < 220:
+                logger.warning(f"⚠️ Pas assez de données: {len(df_returns)} lignes (besoin 220+)")
+                return self._create_empty_prediction()
+
+            logger.info(f"📊 Données RETURNS préparées: {len(df_returns)} lignes, {df_returns.columns.tolist()}")
 
             # Charger le modèle si nécessaire
             if not self._load_model():
-                return self._fallback_predict(features_df, horizon)
+                return self._fallback_predict(df_returns, horizon)
 
-            # Utiliser le vrai modèle LSTM avec les features
-            return self._real_predict(features_df, horizon)
+            # Utiliser le vrai modèle LSTM avec les RETURNS
+            return self._real_predict(df_returns, horizon)
 
         except Exception as e:
             logger.error(f"❌ Erreur prédiction avec features: {e}")
@@ -118,8 +147,8 @@ class PredictionService:
             if "DATE" in df.index.names:
                 df = df.reset_index()
 
-            # Utiliser la nouvelle méthode pour les features techniques
-            prediction_result = self.predictor.predict_with_technical_features(df, horizon=horizon)
+            # Utiliser la méthode predict standard du PricePredictor
+            prediction_result = self.predictor.predict(df, horizon=horizon)
 
             if "error" in prediction_result:
                 logger.warning(f"⚠️ Erreur prédiction: {prediction_result['error']}")
