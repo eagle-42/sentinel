@@ -955,15 +955,14 @@ def show_decisions_table(ticker):
     st.header("📋 Décisions Récentes - Synthèse")
 
     try:
-        # Récupérer les données de validation historique
-        from gui.services.historical_validation_service import HistoricalValidationService
-
-        historical_validation = HistoricalValidationService()
-        validation_summary = historical_validation.get_validation_summary(ticker, days=7)  # 7 derniers jours
-        validation_results = validation_summary.get("validation_results", [])
+        # Service de validation unifié
+        decision_validation = DecisionValidationService()
+        
+        # Récupérer l'historique des validations (décisions déjà validées)
+        validation_history_df = decision_validation.get_validation_history(ticker, days=7)
+        validation_results = validation_history_df.to_dict('records') if not validation_history_df.empty else []
 
         # Récupérer les décisions en attente de validation
-        decision_validation = DecisionValidationService()
         pending_decisions = decision_validation.get_pending_decisions(ticker)
 
         # Combiner les décisions validées et en attente (SANS DOUBLONS)
