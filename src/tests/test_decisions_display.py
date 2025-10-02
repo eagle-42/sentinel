@@ -56,9 +56,9 @@ def test_service_loading():
     print("=" * 60)
     
     try:
-        from gui.services.historical_validation_service import HistoricalValidationService
+        from gui.services.decision_validation_service import DecisionValidationService
         
-        service = HistoricalValidationService()
+        service = DecisionValidationService()
         print("✅ Service initialisé")
         
         # Charger les décisions

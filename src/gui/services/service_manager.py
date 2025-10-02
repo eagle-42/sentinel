@@ -46,8 +46,8 @@ class ServiceManager:
             from gui.services.chart_service import ChartService
             from gui.services.data_monitor_service import DataMonitorService
             from gui.services.data_service import DataService
+            from gui.services.decision_validation_service import DecisionValidationService
             from gui.services.fusion_service import FusionService
-            from gui.services.historical_validation_service import HistoricalValidationService
             from gui.services.llm_service import LLMService
             from gui.services.monitoring_service import MonitoringService
             from gui.services.prediction_service import PredictionService
@@ -63,7 +63,7 @@ class ServiceManager:
                 "llm_service": LLMService(),
                 "monitoring_service": MonitoringService(),
                 "data_monitor_service": DataMonitorService(),
-                "historical_validation_service": HistoricalValidationService(),
+                "decision_validation_service": DecisionValidationService(),
             }
             self._services_initialized = True
 
