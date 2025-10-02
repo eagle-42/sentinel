@@ -25,6 +25,7 @@ from src.core.fusion import AdaptiveFusion
 from src.core.prediction import PricePredictor
 from src.core.sentiment import SentimentAnalyzer
 from src.data.storage import DataStorage
+from src.gui.services.decision_validation_service import DecisionValidationService
 
 
 class TradingPipeline:
@@ -36,6 +37,7 @@ class TradingPipeline:
         self.fusion = AdaptiveFusion()
         self.sentiment_analyzer = SentimentAnalyzer()
         self.prediction_engine = PricePredictor()
+        self.decision_validator = DecisionValidationService()
 
         # Configuration de trading
         self.buy_threshold = CONSTANTS.BASE_BUY_THRESHOLD
@@ -248,7 +250,7 @@ class TradingPipeline:
             return None
 
     def make_trading_decision(
-        self, ticker: str, price_signal: float, sentiment_signal: float, prediction_signal: Optional[float] = None
+        self, ticker: str, price_signal: float, sentiment_signal: float, prediction_signal: Optional[float] = None, prices: Optional[pd.DataFrame] = None
     ) -> Dict[str, Any]:
         """Prend une décision de trading basée sur les signaux"""
 
@@ -276,17 +278,42 @@ class TradingPipeline:
             confidence = 1.0 - abs(fused_signal)
 
         # Créer la décision
+        # Récupérer le prix actuel
+        if prices is not None and not prices.empty:
+            close_col = 'Close' if 'Close' in prices.columns else 'close'
+            current_price = float(prices[close_col].iloc[-1])
+        else:
+            # Fallback: récupérer depuis le fichier
+            price_df = self.get_latest_prices(ticker)
+            if price_df is not None and not price_df.empty:
+                close_col = 'Close' if 'Close' in price_df.columns else 'close'
+                current_price = float(price_df[close_col].iloc[-1])
+            else:
+                current_price = 0.0
+        
         decision_data = {
             "ticker": ticker,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "decision": decision,
             "confidence": confidence,
             "fused_signal": fused_signal,
+            "current_price": current_price,
             "signals": signals,
             "thresholds": {"buy": self.buy_threshold, "sell": self.sell_threshold, "hold": self.hold_confidence},
         }
 
-        logger.info(f"🤖 Décision {ticker}: {decision} (confiance: {confidence:.3f}, signal: {fused_signal:.3f})")
+        logger.info(f"🤖 Décision {ticker}: {decision} (confiance: {confidence:.3f}, signal: {fused_signal:.3f}, prix: ${current_price:.2f})")
+        
+        # Sauvegarder comme décision en attente de validation (15 minutes) - TOUTES les décisions
+        validation_result = self.decision_validator.validate_decision(
+            ticker=ticker,
+            decision=decision,
+            fusion_score=fused_signal,
+            current_price=current_price,
+            timestamp=datetime.now(timezone.utc)
+        )
+        if decision != "HOLD":
+            logger.info(f"⏳ Décision en attente de validation: {validation_result.get('message', 'N/A')}")
 
         return decision_data
 
@@ -306,7 +333,7 @@ class TradingPipeline:
         prediction_signal = self.get_lstm_prediction(ticker, prices)
 
         # Prendre la décision
-        decision = self.make_trading_decision(ticker, price_signal, sentiment_signal, prediction_signal)
+        decision = self.make_trading_decision(ticker, price_signal, sentiment_signal, prediction_signal, prices)
 
         return decision
 

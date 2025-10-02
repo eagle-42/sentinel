@@ -836,7 +836,7 @@ def _check_fusion_dependencies(services, ticker, market_status):
         # 2. Vérifier la prédiction (seulement pour SPY)
         if ticker == "SPY":
             try:
-                prediction = services["prediction_service"].predict(data, horizon=20)
+                prediction = services["prediction_service"].predict_with_features(ticker, horizon=20)
                 if not prediction or "predictions" not in prediction:
                     errors.append(
                         {
@@ -966,18 +966,25 @@ def show_decisions_table(ticker):
         decision_validation = DecisionValidationService()
         pending_decisions = decision_validation.get_pending_decisions(ticker)
 
-        # Combiner les décisions validées et en attente
+        # Combiner les décisions validées et en attente (SANS DOUBLONS)
         all_decisions = []
+        seen_timestamps = set()
 
         # Ajouter les décisions validées
         for decision in validation_results:
             decision["status"] = "validated"
-            all_decisions.append(decision)
+            timestamp_str = str(decision.get("timestamp", ""))
+            if timestamp_str not in seen_timestamps:
+                all_decisions.append(decision)
+                seen_timestamps.add(timestamp_str)
 
-        # Ajouter les décisions en attente
+        # Ajouter les décisions en attente (uniquement si pas déjà validées)
         for decision in pending_decisions:
             decision["status"] = "pending"
-            all_decisions.append(decision)
+            timestamp_str = str(decision.get("timestamp", ""))
+            if timestamp_str not in seen_timestamps:
+                all_decisions.append(decision)
+                seen_timestamps.add(timestamp_str)
 
         if all_decisions:
             # Trier par timestamp pour avoir les plus récentes en premier
@@ -1057,10 +1064,9 @@ def show_decisions_table(ticker):
                 decision_status = decision.get("status", "validated")
 
                 if decision_status == "pending":
-                    # Décision en attente de validation
-                    future_price = current_price  # Même prix pour l'instant
-                    price_change = 0
-                    gain_dollars = 0
+                    # Décision en attente de validation - attendre 15 minutes
+                    future_price_display = "⏳ Attente..."
+                    gain_display = "⏳"
                     result_text = "⏳ En attente..."
                 else:
                     # Décision validée
@@ -1075,6 +1081,9 @@ def show_decisions_table(ticker):
                     # Si prix -15min > prix +15min → Négatif (baisse)
                     is_positive = current_price < future_price
                     result_text = "Positif" if is_positive else "Négatif"
+                    
+                    future_price_display = f"${future_price:.2f}"
+                    gain_display = f"${gain_dollars:+.2f}"
 
                 table_data.append(
                     {
@@ -1082,10 +1091,10 @@ def show_decisions_table(ticker):
                         "Date": date_str,
                         "Heure": heure_str,
                         "Prix -15min": f"${current_price:.2f}",
-                        "Prix +15min": f"${future_price:.2f}",
+                        "Prix +15min": future_price_display,
                         "Décision": decision.get("decision", "N/A"),
                         "Résultat": result_text,
-                        "Gain": f"${gain_dollars:+.2f}",
+                        "Gain": gain_display,
                     }
                 )
 

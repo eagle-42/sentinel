@@ -53,18 +53,7 @@ class DecisionValidationService:
             Dict contenant les résultats de validation
         """
         try:
-            # Pour les décisions HOLD, pas de validation nécessaire
-            if decision.upper() == "HOLD":
-                return {
-                    "status": "hold",
-                    "message": "Décision HOLD - Aucune validation nécessaire",
-                    "accuracy": None,
-                    "price_change": None,
-                    "validation_time": None,
-                    "is_correct": None,
-                }
-
-            # Marquer la décision comme en attente de validation
+            # Marquer TOUTES les décisions comme en attente de validation (y compris HOLD)
             validation_result = {
                 "status": "pending",
                 "message": "En attente de validation (15 minutes)...",
