@@ -392,6 +392,12 @@ class TradingPipeline:
         logger.info("🤖 === PIPELINE DE TRADING ===")
         start_time = datetime.now()
 
+        # Valider les décisions en attente AVANT de générer de nouvelles décisions
+        logger.info("🔍 Vérification des décisions en attente de validation...")
+        validated_count = self.decision_validator.process_pending_validations()
+        if validated_count > 0:
+            logger.info(f"✅ {validated_count} décision(s) validée(s)")
+
         # Vérifier si on est dans une fenêtre de décision valide (15 minutes)
         if not force and not self._is_decision_window():
             logger.info("⏰ Pas dans une fenêtre de décision (15min) - Attente")
