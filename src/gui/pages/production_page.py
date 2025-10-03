@@ -1290,8 +1290,6 @@ def _check_market_status():
     except ImportError:
         # Fallback si pytz n'est pas disponible
         # Utiliser EDT (UTC-4) pour septembre 2025
-        from datetime import timedelta, timezone
-
         edt = timezone(timedelta(hours=-4))
         now_est = datetime.now(edt)
         current_time = now_est.strftime("%H:%M")
@@ -1383,8 +1381,6 @@ def _get_next_decision_time():
     except ImportError:
         # Fallback si pytz n'est pas disponible
         # Utiliser EDT (UTC-4) pour septembre 2025
-        from datetime import timedelta, timezone
-
         edt = timezone(timedelta(hours=-4))
         now_est = datetime.now(edt)
 
