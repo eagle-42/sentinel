@@ -83,7 +83,7 @@ class IncrementalStorageTest:
             
             # SAUVEGARDER (incrémental)
             logger.info(f"\n💾 Sauvegarde incrémentale...")
-            result_path = self.storage.save_prices(test_data, ticker, "15min")
+            result_path = self.storage.save_data(test_data, data_type="prices", ticker=ticker, interval="15min")
             
             # Vérifier résultat
             final_df = pd.read_parquet(file_path)
@@ -157,7 +157,7 @@ class IncrementalStorageTest:
             
             # SAUVEGARDER (incrémental)
             logger.info(f"\n💾 Sauvegarde incrémentale...")
-            result_path = self.storage.save_news(test_news)
+            result_path = self.storage.save_data(test_news, data_type="news")
             
             # Vérifier résultat
             final_df = pd.read_parquet(file_path)
@@ -226,7 +226,7 @@ class IncrementalStorageTest:
             
             # SAUVEGARDER (incrémental)
             logger.info(f"\n💾 Sauvegarde incrémentale...")
-            result_path = self.storage.save_sentiment(test_sentiment, ticker)
+            result_path = self.storage.save_data(test_sentiment, data_type="sentiment", ticker=ticker)
             
             # Vérifier résultat
             final_df = pd.read_parquet(file_path)

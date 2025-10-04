@@ -72,56 +72,94 @@ class ParquetStorage:
             logger.error(f"❌ Erreur sauvegarde: {e}")
             raise
     
-    def save_prices(self, 
-                   data: pd.DataFrame, 
-                   ticker: str, 
-                   interval: str = "15min") -> Path:
-        """Sauvegarde les données de prix de manière incrémentale"""
-        file_path = CONSTANTS.get_data_path("prices", ticker, interval)
-        logger.info(f"💾 Sauvegarde prix {ticker} ({interval})")
-        return self._save_incremental(data, file_path, dedup_cols=['ts_utc'], sort_col='ts_utc')
-    
-    def load_prices(self, 
-                   ticker: str, 
-                   interval: str = "15min") -> pd.DataFrame:
-        """Charge les données de prix"""
-        file_path = CONSTANTS.get_data_path("prices", ticker, interval)
-        return self._load_data(file_path, f"Prix {ticker}")
-    
-    def save_news(self, 
-                 data: pd.DataFrame, 
-                 ticker: str = None) -> Path:
-        """Sauvegarde les données de news de manière incrémentale"""
-        file_path = CONSTANTS.get_data_path("news", ticker) if ticker else CONSTANTS.NEWS_DIR / "all_news.parquet"
-        logger.info(f"💾 Sauvegarde news")
-        return self._save_incremental(data, file_path, dedup_cols=['timestamp', 'title'], sort_col='timestamp')
-    
-    def load_news(self, 
-                 ticker: str = None) -> pd.DataFrame:
-        """Charge les données de news"""
-        if ticker:
-            file_path = CONSTANTS.get_data_path("news", ticker)
-        else:
-            news_files = list(CONSTANTS.NEWS_DIR.glob("*.parquet"))
-            if not news_files:
-                logger.warning("⚠️ Aucun fichier news trouvé")
-                return pd.DataFrame()
-            file_path = max(news_files, key=lambda x: x.stat().st_mtime)
+    def save_data(self,
+                 data: pd.DataFrame,
+                 data_type: str,
+                 ticker: str = None,
+                 interval: str = "15min") -> Path:
+        """Sauvegarde générique de données avec gestion incrémentale
         
-        return self._load_data(file_path, "News")
+        Args:
+            data: DataFrame à sauvegarder
+            data_type: Type de données ("prices", "news", "sentiment")
+            ticker: Symbole du ticker (requis pour prices et sentiment)
+            interval: Intervalle pour les prix (défaut: "15min")
+            
+        Returns:
+            Path du fichier sauvegardé
+            
+        Raises:
+            ValueError: Si data_type invalide ou ticker manquant
+        """
+        if data_type == "prices":
+            if not ticker:
+                raise ValueError("ticker requis pour data_type='prices'")
+            file_path = CONSTANTS.get_data_path("prices", ticker, interval)
+            dedup_cols = ['ts_utc']
+            sort_col = 'ts_utc'
+            logger.info(f"💾 Sauvegarde prix {ticker} ({interval})")
+            
+        elif data_type == "news":
+            file_path = CONSTANTS.get_data_path("news", ticker) if ticker else CONSTANTS.NEWS_DIR / "all_news.parquet"
+            dedup_cols = ['timestamp', 'title']
+            sort_col = 'timestamp'
+            logger.info(f"💾 Sauvegarde news")
+            
+        elif data_type == "sentiment":
+            if not ticker:
+                raise ValueError("ticker requis pour data_type='sentiment'")
+            file_path = CONSTANTS.get_data_path("sentiment", ticker)
+            dedup_cols = ['timestamp']
+            sort_col = 'timestamp'
+            logger.info(f"💾 Sauvegarde sentiment {ticker}")
+            
+        else:
+            raise ValueError(f"data_type invalide: {data_type}. Valeurs acceptées: 'prices', 'news', 'sentiment'")
+        
+        return self._save_incremental(data, file_path, dedup_cols, sort_col)
     
-    def save_sentiment(self, 
-                      data: pd.DataFrame, 
-                      ticker: str) -> Path:
-        """Sauvegarde les données de sentiment de manière incrémentale"""
-        file_path = CONSTANTS.get_data_path("sentiment", ticker)
-        logger.info(f"💾 Sauvegarde sentiment {ticker}")
-        return self._save_incremental(data, file_path, dedup_cols=['timestamp'], sort_col='timestamp')
-    
-    def load_sentiment(self, ticker: str) -> pd.DataFrame:
-        """Charge les données de sentiment"""
-        file_path = CONSTANTS.get_data_path("sentiment", ticker)
-        return self._load_data(file_path, f"Sentiment {ticker}")
+    def load_data(self,
+                 data_type: str,
+                 ticker: str = None,
+                 interval: str = "15min") -> pd.DataFrame:
+        """Chargement générique de données
+        
+        Args:
+            data_type: Type de données ("prices", "news", "sentiment")
+            ticker: Symbole du ticker (requis pour prices et sentiment)
+            interval: Intervalle pour les prix (défaut: "15min")
+            
+        Returns:
+            DataFrame chargé
+            
+        Raises:
+            ValueError: Si data_type invalide ou ticker manquant
+        """
+        if data_type == "prices":
+            if not ticker:
+                raise ValueError("ticker requis pour data_type='prices'")
+            file_path = CONSTANTS.get_data_path("prices", ticker, interval)
+            return self._load_data(file_path, f"Prix {ticker}")
+            
+        elif data_type == "news":
+            if ticker:
+                file_path = CONSTANTS.get_data_path("news", ticker)
+            else:
+                news_files = list(CONSTANTS.NEWS_DIR.glob("*.parquet"))
+                if not news_files:
+                    logger.warning("⚠️ Aucun fichier news trouvé")
+                    return pd.DataFrame()
+                file_path = max(news_files, key=lambda x: x.stat().st_mtime)
+            return self._load_data(file_path, "News")
+            
+        elif data_type == "sentiment":
+            if not ticker:
+                raise ValueError("ticker requis pour data_type='sentiment'")
+            file_path = CONSTANTS.get_data_path("sentiment", ticker)
+            return self._load_data(file_path, f"Sentiment {ticker}")
+            
+        else:
+            raise ValueError(f"data_type invalide: {data_type}. Valeurs acceptées: 'prices', 'news', 'sentiment'")
     
     def _load_data(self, file_path: Path, data_type: str) -> pd.DataFrame:
         """Méthode générique de chargement de données"""

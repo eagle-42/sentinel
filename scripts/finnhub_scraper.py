@@ -109,7 +109,7 @@ def refresh_prices_finnhub(ticker: str = "SPY") -> bool:
         
         # Sauvegarder via storage (sauvegarde incrémentale)
         storage = ParquetStorage()
-        file_path = storage.save_prices(new_bar, ticker, interval="15min")
+        file_path = storage.save_data(new_bar, data_type="prices", ticker=ticker, interval="15min")
         
         logger.info(f"✅ Prix sauvegardé via storage: {file_path}")
         

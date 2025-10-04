@@ -277,7 +277,7 @@ class NewsRefresher:
 
         df = pd.DataFrame(news_items)
         df['timestamp'] = df['ts_utc']  # Assurer colonne timestamp pour dedup
-        return self.storage.save_news(df)
+        return self.storage.save_data(df, data_type="news")
 
     def save_sentiment_data(self, sentiment_data: Dict[str, Any]) -> Path:
         """Sauvegarde les données de sentiment via storage"""
@@ -292,7 +292,7 @@ class NewsRefresher:
             })
 
         df = pd.DataFrame(sentiment_records)
-        return self.storage.save_sentiment(df, ticker="SPY")
+        return self.storage.save_data(df, data_type="sentiment", ticker="SPY")
 
     def refresh_news_and_sentiment(self) -> Dict[str, Any]:
         """Met à jour les news et le sentiment"""
