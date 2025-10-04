@@ -48,28 +48,35 @@ class IncrementalStorageTest:
             else:
                 logger.info("📊 Aucune donnée existante")
             
-            # Récupérer données de TEST (1 jour historique)
-            logger.info(f"\n📥 Récupération données TEST (1 jour historique)...")
-            stock = yf.Ticker(ticker)
-            test_data = stock.history(interval="15m", period="1d")
+            # Créer données de TEST manuellement (marché fermé = pas de yfinance)
+            logger.info(f"\n📥 Création données TEST manuelles...")
+            now = datetime.now(timezone.utc)
+            test_data = pd.DataFrame([
+                {
+                    'ts_utc': now,
+                    'open': 450.00,
+                    'high': 451.50,
+                    'low': 449.50,
+                    'close': 450.75,
+                    'volume': 1000000,
+                    'ticker': ticker,
+                    'test_marker': self.test_marker
+                },
+                {
+                    'ts_utc': now - timedelta(minutes=15),
+                    'open': 449.50,
+                    'high': 450.00,
+                    'low': 449.00,
+                    'close': 449.75,
+                    'volume': 950000,
+                    'ticker': ticker,
+                    'test_marker': self.test_marker
+                }
+            ])
             
             if test_data.empty:
-                logger.error("❌ Aucune donnée récupérée de yfinance")
+                logger.error("❌ Erreur création données test")
                 return False
-            
-            # Préparer données pour sauvegarde
-            test_data = test_data.reset_index()
-            test_data.columns = test_data.columns.str.lower()
-            
-            # Ajouter timestamp UTC et ticker
-            if 'datetime' in test_data.columns:
-                test_data['ts_utc'] = pd.to_datetime(test_data['datetime']).dt.tz_convert('UTC')
-            else:
-                test_data['ts_utc'] = pd.Timestamp.now(tz='UTC')
-            test_data['ticker'] = ticker
-            
-            # Ajouter marqueur de test
-            test_data['test_marker'] = self.test_marker
             
             logger.info(f"✅ Données TEST: {len(test_data)} lignes")
             logger.info(f"📅 Période TEST: {test_data['ts_utc'].min()} → {test_data['ts_utc'].max()}")

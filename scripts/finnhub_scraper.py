@@ -18,13 +18,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from src.data import ParquetStorage
 
-FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d31u149r01qsprr2kf10d31u149r01qsprr2kf1g")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
 
 class FinnhubScraper:
     """Scraper Finnhub API"""
-    def __init__(self, api_key: str = FINNHUB_API_KEY):
-        self.api_key = api_key
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or FINNHUB_API_KEY
+        if not self.api_key:
+            raise ValueError("❌ FINNHUB_API_KEY manquante. Définir dans .env")
         self.base_url = "https://finnhub.io/api/v1"
         self.session = requests.Session()
     
