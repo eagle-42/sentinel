@@ -45,7 +45,7 @@ def main():
     st.markdown(
         """
     <div class="main-header">
-        <h1>🚀 Sentinel - Trading Prédictif & Sentiment Analyse</h1>
+        <h1>🚀 Sentinel42</h1>
         <p>Système d'analyse et de prédiction des marchés financiers</p>
     </div>
     """,
