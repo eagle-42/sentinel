@@ -21,12 +21,6 @@ else
     echo -e "${RED}❌ Prefect Server arrêté${NC}"
 fi
 
-if pgrep -f "sentinel_main.py" > /dev/null; then
-    echo -e "${GREEN}✅ Orchestrateur${NC}"
-else
-    echo -e "${RED}❌ Orchestrateur arrêté${NC}"
-fi
-
 if pgrep -f "streamlit run" > /dev/null; then
     echo -e "${GREEN}✅ Streamlit (port 8501)${NC}"
 else
@@ -54,7 +48,6 @@ echo "------------------"
 echo "📊 Prix 15min:       */15 * * * * (toutes les 15min)"
 echo "📰 News + Sentiment: */4 * * * *  (toutes les 4min)"
 echo "🤖 Trading:          */15 9-16 * * 1-5 (heures marché)"
-echo "📈 Historical:       30 16 * * 1-5 (16h30 ET)"
 
 # 4. Vérifier données
 echo ""
