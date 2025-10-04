@@ -1,5 +1,5 @@
 """
-💾 Stockage Unifié Sentinel2
+Stockage Unifié Sentinel2
 Gestion centralisée du stockage des données
 """
 

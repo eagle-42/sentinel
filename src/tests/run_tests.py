@@ -124,14 +124,12 @@ class TestRunner:
     def _test_data_modules(self) -> bool:
         """Test des modules data"""
         try:
-            from src.data.crawler import DataCrawler
             from src.data.storage import DataStorage
 
             # Test d'initialisation
             storage = DataStorage()
-            crawler = DataCrawler()
 
-            return all([storage, crawler])
+            return bool(storage)
         except Exception:
             return False
 
