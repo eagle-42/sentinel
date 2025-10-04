@@ -21,14 +21,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from src.config import config
 from src.constants import CONSTANTS
 from src.core.sentiment import FinBertAnalyzer, SentimentAnalyzer
-from src.data.storage import DataStorage
+from src.data import ParquetStorage
 
 
 class NewsRefresher:
     """Gestionnaire de mise à jour des données de news et sentiment"""
 
     def __init__(self):
-        self.storage = DataStorage()
+        self.storage = ParquetStorage()
         self.tickers = CONSTANTS.TICKER_NAMES
         self.newsapi_key = os.getenv("NEWSAPI_KEY")
         self.newsapi_enabled = os.getenv("NEWSAPI_ENABLED", "false").lower() == "true"
@@ -270,80 +270,29 @@ class NewsRefresher:
         return sentiment_by_ticker
 
     def save_news_data(self, news_items: List[Dict[str, Any]]) -> Path:
-        """Sauvegarde les données de news dans un fichier unifié"""
+        """Sauvegarde les données de news via storage"""
         if not news_items:
             logger.warning("⚠️ Aucune donnée de news à sauvegarder")
             return None
 
-        # Convertir en DataFrame
         df = pd.DataFrame(news_items)
-
-        # Fichier unifié pour toutes les news
-        file_path = CONSTANTS.NEWS_DIR / "all_news.parquet"
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Charger les données existantes et fusionner
-        existing_data = pd.DataFrame()
-        if file_path.exists():
-            try:
-                existing_data = pd.read_parquet(file_path)
-                logger.info(f"📊 News existantes: {len(existing_data)} lignes")
-            except Exception as e:
-                logger.warning(f"⚠️ Erreur lecture news existantes: {e}")
-
-        # Fusionner les données (éviter les doublons)
-        if not existing_data.empty:
-            # Supprimer les doublons basés sur title + source + ts_utc
-            df = pd.concat([existing_data, df], ignore_index=True)
-            df = df.drop_duplicates(subset=["title", "source", "ts_utc"], keep="last")
-
-        # Sauvegarder
-        df.to_parquet(file_path, index=False)
-        logger.info(f"💾 News sauvegardées: {file_path} ({len(df)} lignes total)")
-
-        return file_path
+        df['timestamp'] = df['ts_utc']  # Assurer colonne timestamp pour dedup
+        return self.storage.save_news(df)
 
     def save_sentiment_data(self, sentiment_data: Dict[str, Any]) -> Path:
-        """Sauvegarde les données de sentiment dans un fichier unifié"""
-        # Convertir en DataFrame
+        """Sauvegarde les données de sentiment via storage"""
         sentiment_records = []
         for ticker, data in sentiment_data.items():
-            sentiment_records.append(
-                {
-                    "ticker": ticker,
-                    "ts_utc": datetime.now(timezone.utc),
-                    "sentiment_score": data["sentiment_score"],
-                    "confidence": data["confidence"],
-                    "article_count": data["article_count"],
-                }
-            )
+            sentiment_records.append({
+                "ticker": ticker,
+                "timestamp": datetime.now(timezone.utc),
+                "sentiment_score": data["sentiment_score"],
+                "confidence": data["confidence"],
+                "article_count": data["article_count"],
+            })
 
         df = pd.DataFrame(sentiment_records)
-
-        # Fichier unifié pour le sentiment
-        file_path = CONSTANTS.SENTIMENT_DIR / "spy_sentiment.parquet"
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Charger les données existantes et fusionner
-        existing_data = pd.DataFrame()
-        if file_path.exists():
-            try:
-                existing_data = pd.read_parquet(file_path)
-                logger.info(f"📊 Sentiment existant: {len(existing_data)} lignes")
-            except Exception as e:
-                logger.warning(f"⚠️ Erreur lecture sentiment existant: {e}")
-
-        # Fusionner les données (éviter les doublons)
-        if not existing_data.empty:
-            # Supprimer les doublons basés sur ticker + ts_utc
-            df = pd.concat([existing_data, df], ignore_index=True)
-            df = df.drop_duplicates(subset=["ticker", "ts_utc"], keep="last")
-
-        # Sauvegarder
-        df.to_parquet(file_path, index=False)
-        logger.info(f"💾 Sentiment sauvegardé: {file_path} ({len(df)} lignes total)")
-
-        return file_path
+        return self.storage.save_sentiment(df, ticker="SPY")
 
     def refresh_news_and_sentiment(self) -> Dict[str, Any]:
         """Met à jour les news et le sentiment"""
