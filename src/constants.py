@@ -2,7 +2,7 @@
 🎯 CONSTANTES GLOBALES SENTINEL2
 Toutes les constantes du projet centralisées ici - PAS DE VARIABLES LOCALES
 """
-
+#CONSTANTE INUTILISE A SUPPRIMER ET METHODE CHECK AUSSI ..
 from pathlib import Path
 from typing import Any, Dict, List
 
