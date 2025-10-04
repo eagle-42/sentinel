@@ -1,13 +1,11 @@
 """
-🚀 Déploiement Prefect 3.0+ pour Sentinel2
-Utilise la nouvelle API flow.deploy()
+Déploiement Prefect 3.0+ pour Sentinel2
 """
 
 from sentinel_flows import (
     prices_15min_flow,
     news_sentiment_flow,
     trading_flow,
-    historical_update_flow,
     full_system_flow
 )
 

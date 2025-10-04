@@ -56,7 +56,6 @@ make stop
 | 📊 **Prix 15min** | */15 * * * * | Refresh prix temps réel |
 | 📰 **News + Sentiment** | */4 * * * * | RSS + FinBERT |
 | 🤖 **Trading** | */15 9-16 * * 1-5 | Décisions trading (heures marché) |
-| 📈 **Historical** | 30 16 * * 1-5 | Update prix journaliers |
 
 ---
 

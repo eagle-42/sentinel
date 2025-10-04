@@ -1,7 +1,6 @@
 """
-🚀 Prefect Flows pour Sentinel2
+Prefect Flows pour Sentinel2
 Architecture orchestration complète avec monitoring
-TOUS LES CRAWLERS: Prix 15min, News, Trading, Validation
 """
 
 from prefect import flow, task
@@ -11,25 +10,21 @@ import sys
 import subprocess
 from pathlib import Path
 
-# Ajoute le projet au path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-
-# TASKS - Unités atomiques de travail
 
 @task(name="refresh-prices-15min", retries=2, retry_delay_seconds=30, log_prints=True)
 def refresh_prices_15min_task():
     """Task: Rafraîchir les prix 15min (SPY) via Finnhub API"""
     logger.info("📊 Refresh prix 15min (Finnhub)...")
     try:
-        # Utilise Finnhub pour les données temps réel
         result = subprocess.run(
             ["uv", "run", "python", "scripts/finnhub_scraper.py"],
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=60  # Réduit à 60s (API rapide)
+            timeout=60
         )
         
         if result.returncode == 0:
@@ -95,11 +90,6 @@ def trading_decision_task(force: bool = False):
         raise
 
 
-# Task update_historical_prices supprimé - Finnhub fournit les données temps réel
-
-
-# FLOWS - Pipelines orchestrés
-
 @flow(name="📊 Prix 15min Flow", log_prints=True)
 def prices_15min_flow():
     """
@@ -152,9 +142,6 @@ def trading_flow(force: bool = False):
     }
 
 
-# Flow historical_update_flow supprimé - Finnhub temps réel suffit
-
-
 @flow(name="🚀 Full System Flow", log_prints=True)
 def full_system_flow():
     """
@@ -188,10 +175,7 @@ def full_system_flow():
     }
 
 
-# TEST LOCAL
-
 if __name__ == "__main__":
-    # Test local des flows
     logger.info("🧪 Test local des flows Sentinel2")
     logger.info("=" * 60)
     

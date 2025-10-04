@@ -27,13 +27,6 @@ deployments:
       force: false
     tags: ["production", "trading"]
     
-  - name: historical-daily
-    entrypoint: flows/sentinel_flows.py:historical_update_flow
-    schedule:
-      cron: "30 16 * * 1-5"
-      timezone: America/New_York
-    tags: ["production", "historical"]
-    
   - name: full-system-startup
     entrypoint: flows/sentinel_flows.py:full_system_flow
     tags: ["production", "startup"]
