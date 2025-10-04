@@ -1,27 +1,21 @@
 """
-Service de validation en temps réel des décisions de trading
-Valide les décisions BUY/SELL contre l'évolution des prix futurs
+Service de validation des décisions de trading
+Utilise des règles métier pour valider les décisions avant exécution
 """
 
 import json
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 from loguru import logger
 
-# Ajouter le chemin src pour les imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from constants import CONSTANTS
+from src.constants import CONSTANTS
 
 
 class DecisionValidationService:
     """Service de validation en temps réel des décisions de trading"""
-
     def __init__(self):
         self.data_path = CONSTANTS.get_data_path()
         self.decisions_path = self.data_path / "trading" / "decisions_log"

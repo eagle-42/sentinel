@@ -9,13 +9,9 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Ajouter le répertoire src au path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from gui.constants import normalize_columns
-
 # Import du gestionnaire de services centralisé
-from gui.services.service_manager import service_manager
+from src.gui.services.service_manager import service_manager
+from src.constants import CONSTANTS
 
 
 def show_analysis_page():
@@ -88,9 +84,10 @@ def show_analysis_page():
         # Convertir l'index DATE en colonne date pour la normalisation
         if not data.empty:
             # Reset l'index pour avoir DATE comme colonne
-            data = data.reset_index()
+            if "DATE" in data.index.names:
+                data = data.reset_index()
             # Normaliser les colonnes en minuscules
-            data = normalize_columns(data)
+            data.columns = data.columns.str.lower()
             # Conversion des dates
             data["date"] = pd.to_datetime(data["date"], utc=True)
             # Tri par date

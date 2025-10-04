@@ -4,7 +4,6 @@ Surveillance système et alertes
 """
 
 import json
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -13,9 +12,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from loguru import logger
-
-# Ajouter le répertoire src au path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 try:
     import psutil
@@ -108,7 +104,6 @@ class MonitoringService:
             return {
                 "cpu_percent": 0.0,
                 "memory_percent": 0.0,
-                "disk_percent": 0.0,
                 "timestamp": datetime.now(),
                 "error": str(e),
             }
@@ -118,9 +113,10 @@ class MonitoringService:
         try:
             from pathlib import Path
             import json
+            from src.constants import CONSTANTS
             
-            # Charger les VRAIES décisions
-            decisions_file = Path("data/trading/decisions_log/trading_decisions.json")
+            # Charger les décisions
+            decisions_file = CONSTANTS.TRADING_DIR / "decisions_log" / "trading_decisions.json"
             
             if decisions_file.exists():
                 with open(decisions_file, "r") as f:
@@ -131,7 +127,7 @@ class MonitoringService:
                             d["timestamp"] = d["timestamp"]
                     return decisions[-limit:] if decisions else []
             else:
-                logger.warning("⚠️ Fichier décisions introuvable, utilisation données simulées")
+                logger.warning("⚠️ Fichier décisions introuvable")
                 if not self.trading_decisions:
                     self._generate_sample_decisions()
                 return self.trading_decisions[-limit:] if self.trading_decisions else []
@@ -145,7 +141,6 @@ class MonitoringService:
         try:
             # Générer des alertes basées sur le statut
             self._generate_alerts()
-            return self.alerts[-10:] if self.alerts else []  # 10 dernières alertes
         except Exception as e:
             logger.error(f"❌ Erreur alertes: {e}")
             return []

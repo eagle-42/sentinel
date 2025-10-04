@@ -11,9 +11,6 @@ import plotly.graph_objects as go
 from loguru import logger
 from plotly.subplots import make_subplots
 
-# Importer les constantes de normalisation
-from gui.constants import normalize_columns
-
 
 class ChartService:
     """Service de graphiques robuste pour Streamlit"""
@@ -53,14 +50,17 @@ class ChartService:
             if df.empty:
                 return self._create_error_figure("Aucune donnée disponible")
 
-            # Normaliser les colonnes en minuscules
-            df_normalized = normalize_columns(df)
+            # Normaliser les colonnes pour chart (minuscules)
+            df_work = df.copy()
+            if "DATE" in df_work.index.names:
+                df_work = df_work.reset_index()
+            df_work.columns = df_work.columns.str.lower()
 
             # Nouvelle figure à chaque appel
             fig = go.Figure()
 
             # Données triées par date
-            df_sorted = df_normalized.sort_values("date").reset_index(drop=True)
+            df_sorted = df_work.sort_values("date").reset_index(drop=True)
 
             # Prix de clôture
             fig.add_trace(

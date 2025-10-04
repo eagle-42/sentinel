@@ -10,11 +10,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# Ajouter le répertoire src au path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 # Import du gestionnaire de services centralisé
-from gui.services.service_manager import service_manager
+from src.gui.services.service_manager import service_manager
 
 
 def show_logs_page():

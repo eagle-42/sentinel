@@ -17,7 +17,8 @@ class DataMonitorService:
     """Service de monitoring des données en temps réel"""
 
     def __init__(self):
-        self.data_path = Path("data/realtime/prices")
+        from src.constants import CONSTANTS
+        self.data_path = CONSTANTS.PRICES_DIR
         self.cache = {}
         self.last_update = {}
 

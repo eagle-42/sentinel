@@ -43,15 +43,15 @@ class ServiceManager:
         """Initialise tous les services seulement si nécessaire"""
         try:
             # Import des services seulement quand nécessaire
-            from gui.services.chart_service import ChartService
-            from gui.services.data_monitor_service import DataMonitorService
-            from gui.services.data_service import DataService
-            from gui.services.decision_validation_service import DecisionValidationService
-            from gui.services.fusion_service import FusionService
-            from gui.services.llm_service import LLMService
-            from gui.services.monitoring_service import MonitoringService
-            from gui.services.prediction_service import PredictionService
-            from gui.services.sentiment_service import SentimentService
+            from src.gui.services.chart_service import ChartService
+            from src.gui.services.data_monitor_service import DataMonitorService
+            from src.gui.services.data_service import DataService
+            from src.gui.services.decision_validation_service import DecisionValidationService
+            from src.gui.services.fusion_service import FusionService
+            from src.gui.services.llm_service import LLMService
+            from src.gui.services.monitoring_service import MonitoringService
+            from src.gui.services.prediction_service import PredictionService
+            from src.gui.services.sentiment_service import SentimentService
 
             # Initialisation des services
             self._services = {

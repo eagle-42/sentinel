@@ -1,22 +1,17 @@
 """
-Service de fusion pour l'onglet Production
-Fusion adaptative des signaux (prix + sentiment + prédiction) avec validation
+Service de fusion pour Streamlit
+Combine prédictions prix et sentiment
 """
 
-import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 from loguru import logger
 
-# Ajouter le répertoire src au path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 try:
-    from core.fusion import AdaptiveFusion
+    from src.core.fusion import AdaptiveFusion
 
     FUSION_AVAILABLE = True
     logger.info("✅ AdaptiveFusion importé avec succès")
@@ -26,7 +21,7 @@ except ImportError as e:
     AdaptiveFusion = None
 
 try:
-    from gui.services.decision_validation_service import DecisionValidationService
+    from src.gui.services.decision_validation_service import DecisionValidationService
 
     VALIDATION_AVAILABLE = True
     logger.info("✅ DecisionValidationService importé avec succès")

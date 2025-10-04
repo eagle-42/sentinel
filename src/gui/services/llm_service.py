@@ -4,7 +4,6 @@ Limite les tokens pour des réponses concises et efficaces
 """
 
 import json
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
@@ -12,10 +11,7 @@ from typing import Dict, Optional
 import requests
 from loguru import logger
 
-# Ajouter le chemin src pour les imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from constants import CONSTANTS
+from src.constants import CONSTANTS
 
 
 class LLMService:

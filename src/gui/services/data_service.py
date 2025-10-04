@@ -15,8 +15,10 @@ class DataService:
     """Service de données optimisé pour Streamlit"""
 
     def __init__(self):
-        self.historical_path = Path("data/historical/yfinance")
-        self.realtime_path = Path("data/realtime/prices")
+        from src.constants import CONSTANTS
+        self.historical_path = CONSTANTS.YFINANCE_DIR
+        self.realtime_path = CONSTANTS.PRICES_DIR
+        self.features_dir = CONSTANTS.FEATURES_DIR
         self.cache = {}
         logger.info("📊 Service de données initialisé")
 
@@ -29,7 +31,7 @@ class DataService:
 
             if use_features:
                 # Pour le modèle LSTM, charger les features techniques
-                features_file = Path("data/historical/features") / f"{ticker.lower()}_features.parquet"
+                features_file = self.features_dir / f"{ticker.lower()}_features.parquet"
                 if features_file.exists():
                     df = self._load_features_data(features_file, ticker)
                     if not df.empty:
@@ -191,7 +193,7 @@ class DataService:
         df = df.sort_index()
 
         # Nettoyer les NaN
-        df = df.fillna(method="ffill").fillna(method="bfill")
+        df = df.ffill().bfill()
 
         # Normaliser les colonnes en majuscules pour correspondre aux features attendues
         df.columns = df.columns.str.upper()
@@ -288,11 +290,11 @@ class DataService:
 
     def get_available_tickers(self) -> list:
         """Retourne la liste des tickers disponibles"""
-        if not self.data_path.exists():
+        if not self.historical_path.exists():
             return []
 
         tickers = []
-        for file_path in self.data_path.glob("*.parquet"):
+        for file_path in self.historical_path.glob("*.parquet"):
             ticker = file_path.stem.replace("_1999_2025", "")
             tickers.append(ticker)
 

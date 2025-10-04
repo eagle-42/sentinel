@@ -3,32 +3,27 @@ Interface Streamlit principale - Sentinel Trading
 Structure conforme aux bonnes pratiques officielles Streamlit
 """
 
-import sys
 from pathlib import Path
 
 import streamlit as st
 
-# Ajouter le répertoire src au path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 # Configuration des logs AVANT tout import
-from gui.config.logging_config import setup_logging
+from src.gui.config.logging_config import setup_logging
+from src.constants import CONSTANTS
 
 setup_logging()
 
-from gui.config.settings import APP_CONFIG, get_css_path
-
 # Imports au niveau du module (bonnes pratiques officielles)
-from gui.pages.analysis_page import show_analysis_page
-from gui.pages.logs_page import show_logs_page
-from gui.pages.production_page import show_production_page
+from src.gui.pages.analysis_page import show_analysis_page
+from src.gui.pages.logs_page import show_logs_page
+from src.gui.pages.production_page import show_production_page
 
 
 def inject_css() -> None:
     """Injection contrôlée du CSS centralisé (bonnes pratiques officielles)"""
-    css_path = get_css_path()
-    if Path(css_path).exists():
-        css_content = Path(css_path).read_text(encoding="utf-8")
+    css_path = Path(__file__).parent / "assets" / "custom.css"
+    if css_path.exists():
+        css_content = css_path.read_text(encoding="utf-8")
         st.markdown(f"<style>{css_content}</style>", unsafe_allow_html=True)
 
 
@@ -36,7 +31,12 @@ def main():
     """Fonction principale selon les bonnes pratiques officielles Streamlit"""
 
     # Configuration de la page au tout début (Get started + API reference)
-    st.set_page_config(**APP_CONFIG)
+    st.set_page_config(
+        page_title=CONSTANTS.STREAMLIT_PAGE_TITLE,
+        page_icon=CONSTANTS.STREAMLIT_PAGE_ICON,
+        layout=CONSTANTS.STREAMLIT_LAYOUT,
+        initial_sidebar_state="expanded",
+    )
 
     # Injection du CSS centralisé
     inject_css()

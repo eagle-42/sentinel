@@ -4,7 +4,6 @@ Interface optimisée selon les spécifications utilisateur
 """
 
 import json
-import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -16,18 +15,15 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 
-# Ajouter le répertoire src au path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from gui.services.chart_service import ChartService
-from gui.services.data_monitor_service import DataMonitorService
-from gui.services.data_service import DataService
-from gui.services.decision_validation_service import DecisionValidationService
-from gui.services.fusion_service import FusionService
-from gui.services.llm_service import LLMService
-from gui.services.monitoring_service import MonitoringService
-from gui.services.prediction_service import PredictionService
-from gui.services.sentiment_service import SentimentService
+from src.gui.services.chart_service import ChartService
+from src.gui.services.data_monitor_service import DataMonitorService
+from src.gui.services.data_service import DataService
+from src.gui.services.decision_validation_service import DecisionValidationService
+from src.gui.services.fusion_service import FusionService
+from src.gui.services.llm_service import LLMService
+from src.gui.services.monitoring_service import MonitoringService
+from src.gui.services.prediction_service import PredictionService
+from src.gui.services.sentiment_service import SentimentService
 
 
 def show_production_page():
@@ -681,7 +677,7 @@ def show_production_page():
 
                 # Afficher l'historique des synthèses
                 try:
-                    from constants import CONSTANTS
+                    from src.constants import CONSTANTS
 
                     synthesis_path = CONSTANTS.get_data_path() / "trading" / "llm_synthesis"
                     synthesis_files = list(synthesis_path.glob(f"{ticker}_synthesis_*.json"))

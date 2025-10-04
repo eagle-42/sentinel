@@ -145,12 +145,32 @@ class SentinelConstants:
     GUI_PORT: int = 7867
     GUI_TITLE: str = "Sentinel2 - Trading Algorithmique TDD"
     GUI_THEME: str = "default"
+    
+    # CONFIGURATION STREAMLIT
+    STREAMLIT_PORT: int = 8501
+    STREAMLIT_ADDRESS: str = "0.0.0.0"
+    STREAMLIT_PAGE_TITLE: str = "Sentinel - Trading Prédictif & Sentiment Analyse"
+    STREAMLIT_PAGE_ICON: str = "🚀"
+    STREAMLIT_LAYOUT: str = "wide"
 
     # CONFIGURATION API
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     API_TITLE: str = "Sentinel2 API"
     API_VERSION: str = "2.0.0"
+    
+    # PÉRIODES D'ANALYSE STREAMLIT
+    ANALYSIS_PERIODS: List[str] = [
+        "7 derniers jours",
+        "1 mois",
+        "3 mois",
+        "6 derniers mois",
+        "1 an",
+        "3 ans",
+        "5 ans",
+        "10 ans",
+        "Total (toutes les données)",
+    ]
 
     # MÉTHODES UTILITAIRES
 

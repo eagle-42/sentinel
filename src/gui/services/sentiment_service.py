@@ -1,9 +1,8 @@
 """
-Service de sentiment pour l'onglet Production
-Analyse FinBERT + agrégation des sentiments
+Service de sentiment pour Streamlit
+Analyse de sentiment avec FinBERT
 """
 
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -12,11 +11,8 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-# Ajouter le répertoire src au path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 try:
-    from core.sentiment import FinBertAnalyzer, SentimentAnalyzer
+    from src.core.sentiment import FinBertAnalyzer, SentimentAnalyzer
 
     SENTIMENT_AVAILABLE = True
     logger.info("✅ SentimentAnalyzer importé avec succès")

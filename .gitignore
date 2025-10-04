@@ -38,6 +38,9 @@ coverage.xml
 *.parquet
 *.csv
 
+# Documents générés
+*.pdf
+
 # Images générées (garder assets statiques)
 /logs/*.png
 /reports/*.png

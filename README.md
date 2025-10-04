@@ -1,11 +1,15 @@
-# 🚀 Sentinel2 - Système de Trading Algorithmique
+# 🏛️ Sentinel2 - Système de Trading Algorithmique TDD
 
-**Version 2.0** | **Status: 🟢 Production Ready** | **Orchestration: Prefect** | **License: 🔒 Proprietary**
+**Version** : 2.0  
+**Statut** : ✅ Projet finalisé et validé  
+**Tests** : 110 tests (99 unitaires + 11 intégration)  
+**Couverture** : 43% (en amélioration continue)
+
+📐 **[Principes d'Architecture](docs/ARCHITECTURE_PRINCIPLES.md)** - Guide de développement (DRY, API unifiée, validation)
 
 > **⚠️ LICENCE PROPRIÉTAIRE - ACCÈS STRICTEMENT RESTREINT ⚠️**  
 > **Copyright © 2025 Eagle42 - Tous droits réservés**  
 > Utilisation interdite sans autorisation écrite préalable.
-
 Système de trading algorithmique automatisé avec ML, sentiment analysis et monitoring en temps réel.
 
 ---

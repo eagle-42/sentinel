@@ -3,7 +3,6 @@ Service de prédiction LSTM pour Streamlit
 Utilise le vrai modèle LSTM entraîné depuis data/models/spy
 """
 
-import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -11,14 +10,8 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-# Ajouter le répertoire src au path pour importer les modules core
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-# Importer les constantes de normalisation
-from gui.constants import normalize_columns
-
 try:
-    from core.prediction import PricePredictor
+    from src.core.prediction import PricePredictor
 
     LSTM_AVAILABLE = True
     logger.info("✅ PricePredictor importé avec succès")
@@ -32,7 +25,8 @@ class PredictionService:
     """Service de prédiction LSTM utilisant le vrai modèle entraîné"""
 
     def __init__(self):
-        self.model_path = Path("data/models/spy")
+        from constants import CONSTANTS
+        self.model_path = CONSTANTS.get_model_path("SPY")
         self.predictor = None
         self.fallback_mode = False
         logger.info("🤖 Service de prédiction LSTM initialisé")
@@ -84,8 +78,8 @@ class PredictionService:
     def predict_with_features(self, ticker: str, horizon: int = 20) -> Dict[str, Any]:
         """Génère des prédictions LSTM avec les données RETURNS"""
         try:
-            from constants import CONSTANTS
-            from gui.services.data_service import DataService
+            from src.constants import CONSTANTS
+            from src.gui.services.data_service import DataService
 
             # Charger les données temps réel 15min
             data_service = DataService()
