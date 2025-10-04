@@ -1,6 +1,6 @@
 """
-🔮 LSTM Simple pour Sentinel2 - CLOSE ONLY
-Basé sur recherche arXiv:2501.17366v1: LSTM sans features = meilleur
+LSTM pour Sentinel2
+Prédiction de prix avec LSTM sur données OHLC
 """
 
 import sys
@@ -21,14 +21,12 @@ from constants import CONSTANTS
 
 class FinancialLSTM(nn.Module):
     """
-    LSTM Simple - Architecture Optimale
+    LSTM - Architecture Optimale
 
     Architecture:
     - LSTM: 64 units x 2 layers, dropout 20%
     - Dense: 64 → 32 → 1
-    - Adam + MSE + Weighted Loss
-
-    Basé sur: LSTM simple performe MIEUX que modèles complexes
+    - Adam + MSE
     """
 
     def __init__(self, input_size: int = 1, hidden_size: int = 64, num_layers: int = 2, dropout: float = 0.2):
@@ -63,7 +61,7 @@ class FinancialLSTM(nn.Module):
 
 
 class PricePredictor:
-    """Prédicteur CLOSE ONLY (simple et performant)"""
+    """Prédicteur de prix avec LSTM"""
 
     def __init__(self, ticker: str = "SPY"):
         self.ticker = ticker.upper()
@@ -72,7 +70,7 @@ class PricePredictor:
         self.is_loaded = False
         self.sequence_length = CONSTANTS.LSTM_SEQUENCE_LENGTH
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        logger.info(f"🔮 Prédicteur CLOSE ONLY initialisé pour {self.ticker}")
+        logger.info(f"🔮 Prédicteur initialisé pour {self.ticker}")
 
     def load_model(self, model_path: Optional[Path] = None) -> bool:
         """Charge le modèle LSTM"""
@@ -208,9 +206,9 @@ class PricePredictor:
             return {"error": str(e)}
 
     def train(self, features_df: pd.DataFrame, epochs: int = 150) -> Dict[str, Any]:
-        """Entraîne le modèle LSTM (RETURNS + features corrélées)"""
+        """Entraîne le modèle LSTM"""
         try:
-            logger.info(f"🚀 Entraînement LSTM ARTICLE pour {self.ticker}")
+            logger.info(f"🚀 Entraînement LSTM pour {self.ticker}")
 
             # TARGET = returns de CLOSE
             if "TARGET" not in features_df.columns:
@@ -230,7 +228,7 @@ class PricePredictor:
             imputer = SimpleImputer(strategy="mean")
             features_data = imputer.fit_transform(features_data)
 
-            # Split 60/20/20 AVANT scaling (article method)
+            # Split 60/20/20 AVANT scaling
             n_train = int(len(features_data) * 0.6)
             n_val = int(len(features_data) * 0.2)
 

@@ -1,5 +1,5 @@
 """
-🧠 Modules Core Sentinel2
+Modules Core Sentinel2
 Modules fondamentaux : fusion, sentiment, prédiction
 """
 

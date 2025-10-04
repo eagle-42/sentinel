@@ -1,5 +1,5 @@
 """
-💭 Analyse de Sentiment FinBERT
+Analyse de Sentiment FinBERT
 Analyse de sentiment financier avec FinBERT et agrégation temporelle
 """
 

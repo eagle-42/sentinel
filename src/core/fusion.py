@@ -1,5 +1,5 @@
 """
-🔄 Fusion Adaptative Prix/Sentiment
+Fusion Adaptative Prix/Sentiment
 Fusion intelligente basée sur les régimes de marché
 """
 
